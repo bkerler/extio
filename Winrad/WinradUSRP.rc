@@ -1,0 +1,207 @@
+// Microsoft Visual C++ generated resource script.
+//
+#include "resource.h"
+
+#define APSTUDIO_READONLY_SYMBOLS
+/////////////////////////////////////////////////////////////////////////////
+//
+// Generated from the TEXTINCLUDE 2 resource.
+//
+#ifndef APSTUDIO_INVOKED
+#include "targetver.h"
+#endif
+#include "afxres.h"
+
+/////////////////////////////////////////////////////////////////////////////
+#undef APSTUDIO_READONLY_SYMBOLS
+
+/////////////////////////////////////////////////////////////////////////////
+// English (Australia) resources
+
+#if !defined(AFX_RESOURCE_DLL) || defined(AFX_TARG_ENA)
+#ifdef _WIN32
+LANGUAGE LANG_ENGLISH, SUBLANG_ENGLISH_AUS
+#pragma code_page(1252)
+#endif //_WIN32
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// Version
+//
+
+VS_VERSION_INFO VERSIONINFO
+ FILEVERSION 1,0,0,0
+ PRODUCTVERSION 1,0,0,0
+ FILEFLAGSMASK 0x3fL
+#ifdef _DEBUG
+ FILEFLAGS 0x1L
+#else
+ FILEFLAGS 0x0L
+#endif
+ FILEOS 0x4L
+ FILETYPE 0x2L
+ FILESUBTYPE 0x0L
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "080004e4"
+        BEGIN
+            VALUE "CompanyName", "spench.net"
+            VALUE "FileDescription", "ExtIO for UHD-driven USRP"
+            VALUE "FileVersion", "1.0.0.0"
+            VALUE "InternalName", "WinradUSRP.dll"
+            VALUE "LegalCopyright", "(c) Balint Seeber 2011.  All rights reserved."
+            VALUE "OriginalFilename", "WinradUSRP.dll"
+            VALUE "ProductName", "USRP ExtIO"
+            VALUE "ProductVersion", "1.0.0.0"
+        END
+    END
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x800, 1252
+    END
+END
+
+
+#ifdef APSTUDIO_INVOKED
+/////////////////////////////////////////////////////////////////////////////
+//
+// TEXTINCLUDE
+//
+
+1 TEXTINCLUDE 
+BEGIN
+    "resource.h\0"
+END
+
+2 TEXTINCLUDE 
+BEGIN
+    "#ifndef APSTUDIO_INVOKED\r\n"
+    "#include ""targetver.h""\r\n"
+    "#endif\r\n"
+    "#include ""afxres.h""\r\n"
+    "\0"
+END
+
+3 TEXTINCLUDE 
+BEGIN
+    "#define _AFX_NO_SPLITTER_RESOURCES\r\n"
+    "#define _AFX_NO_OLE_RESOURCES\r\n"
+    "#define _AFX_NO_TRACKER_RESOURCES\r\n"
+    "#define _AFX_NO_PROPERTY_RESOURCES\r\n"
+    "\r\n"
+    "#if !defined(AFX_RESOURCE_DLL) || defined(AFX_TARG_ENU)\r\n"
+    "LANGUAGE 9, 1\r\n"
+    "#pragma code_page(1252)\r\n"
+    "#include ""res\\WinradUSRP.rc2""  // non-Microsoft Visual C++ edited resources\r\n"
+    "#include ""afxres.rc""     // Standard components\r\n"
+    "#endif\r\n"
+    "\0"
+END
+
+#endif    // APSTUDIO_INVOKED
+
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// Dialog
+//
+
+IDD_DIALOG_EXTIO DIALOGEX 0, 0, 400, 268
+STYLE DS_SETFONT | DS_MODALFRAME | DS_FIXEDSYS | WS_POPUP | WS_VISIBLE | WS_CAPTION | WS_SYSMENU
+CAPTION "USRP"
+FONT 8, "MS Shell Dlg", 400, 0, 0x1
+BEGIN
+    PUSHBUTTON      "OK",IDOK,114,144,18,14,NOT WS_VISIBLE
+    PUSHBUTTON      "Cancel",IDCANCEL,132,144,30,14,NOT WS_VISIBLE
+    CONTROL         "",IDC_SLIDER_GAIN,"msctls_trackbar32",WS_TABSTOP,48,120,294,24
+    LISTBOX         IDC_LIST_LOG,6,180,384,70,LBS_NOINTEGRALHEIGHT | WS_VSCROLL | WS_TABSTOP
+    GROUPBOX        "Gain/Attenuation",IDC_STATIC,6,102,378,60
+    PUSHBUTTON      "Min",IDC_BUTTON_MIN_GAIN,12,120,36,14
+    EDITTEXT        IDC_EDIT_DEVICE_HINT,54,24,78,12,ES_AUTOHSCROLL
+    LTEXT           "Device hint:",IDC_STATIC,6,24,42,8,0,WS_EX_RIGHT
+    LTEXT           "Sample rate:",IDC_STATIC,6,42,42,8,0,WS_EX_RIGHT
+    COMBOBOX        IDC_COMBO_SAMPLE_RATE,54,42,78,96,CBS_DROPDOWN | WS_VSCROLL | WS_TABSTOP
+    LTEXT           "Msps",IDC_STATIC,138,42,17,8
+    PUSHBUTTON      "Max",IDC_BUTTON_MAX_GAIN,342,120,36,14
+    PUSHBUTTON      "Mid",IDC_BUTTON_MID_GAIN,174,144,36,14
+    LTEXT           "Log",IDC_STATIC,6,168,384,12,SS_SUNKEN
+    LTEXT           "Antenna:",IDC_STATIC,17,60,31,8,0,WS_EX_RIGHT
+    COMBOBOX        IDC_COMBO_ANTENNA,54,60,78,54,CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
+    PUSHBUTTON      "Create",IDC_BUTTON_CREATE_DEVICE,138,24,50,14
+    LTEXT           "balint@spench.net",IDC_STATIC_LINK,6,254,61,8
+    LTEXT           "Range:",IDC_STATIC,24,144,24,8,0,WS_EX_RIGHT
+    EDITTEXT        IDC_EDIT_GAIN_RANGE,54,144,54,12,ES_AUTOHSCROLL | ES_READONLY
+    LTEXT           "Current:",IDC_STATIC,258,144,30,8,0,WS_EX_RIGHT
+    EDITTEXT        IDC_EDIT_GAIN_VALUE,294,144,42,12,ES_AUTOHSCROLL | ES_READONLY
+    EDITTEXT        IDC_EDIT_TUNE_INFO,198,6,196,54,ES_MULTILINE | ES_AUTOHSCROLL | ES_READONLY
+    PUSHBUTTON      "Set",IDC_BUTTON_SET_SAMPLE_RATE,162,42,24,14,WS_DISABLED
+    EDITTEXT        IDC_EDIT_STATISTICS,198,66,192,36,ES_MULTILINE | ES_AUTOHSCROLL | ES_READONLY
+    CONTROL         "Remote:",IDC_CHECK_REMOTE,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,9,6,42,10
+    EDITTEXT        IDC_EDIT_REMOTE_ADDRESS,54,6,78,12,ES_AUTOHSCROLL
+    EDITTEXT        IDC_EDIT_OFFSET,54,78,78,12,ES_AUTOHSCROLL | ES_NUMBER
+    CONTROL         "Offset:",IDC_CHECK_OFFSET,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,14,78,38,10
+END
+
+IDD_DIALOG_WAIT DIALOGEX 0, 0, 214, 52
+STYLE DS_SETFONT | DS_MODALFRAME | DS_FIXEDSYS | WS_POPUP | WS_VISIBLE | WS_CAPTION | WS_SYSMENU
+CAPTION "Please wait..."
+FONT 8, "MS Shell Dlg", 400, 0, 0x1
+BEGIN
+    DEFPUSHBUTTON   "OK",IDOK,6,30,50,14,NOT WS_VISIBLE | WS_DISABLED
+    PUSHBUTTON      "Cancel",IDCANCEL,156,30,50,14
+    LTEXT           "Please wait...",IDC_STATIC_INFO,6,6,198,18,SS_SUNKEN
+END
+
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// DESIGNINFO
+//
+
+#ifdef APSTUDIO_INVOKED
+GUIDELINES DESIGNINFO 
+BEGIN
+    IDD_DIALOG_EXTIO, DIALOG
+    BEGIN
+        LEFTMARGIN, 7
+        RIGHTMARGIN, 393
+        TOPMARGIN, 7
+        BOTTOMMARGIN, 261
+    END
+
+    IDD_DIALOG_WAIT, DIALOG
+    BEGIN
+        LEFTMARGIN, 7
+        RIGHTMARGIN, 207
+        TOPMARGIN, 7
+        BOTTOMMARGIN, 45
+    END
+END
+#endif    // APSTUDIO_INVOKED
+
+#endif    // English (Australia) resources
+/////////////////////////////////////////////////////////////////////////////
+
+
+
+#ifndef APSTUDIO_INVOKED
+/////////////////////////////////////////////////////////////////////////////
+//
+// Generated from the TEXTINCLUDE 3 resource.
+//
+#define _AFX_NO_SPLITTER_RESOURCES
+#define _AFX_NO_OLE_RESOURCES
+#define _AFX_NO_TRACKER_RESOURCES
+#define _AFX_NO_PROPERTY_RESOURCES
+
+#if !defined(AFX_RESOURCE_DLL) || defined(AFX_TARG_ENU)
+LANGUAGE 9, 1
+#pragma code_page(1252)
+#include "res\WinradUSRP.rc2"  // non-Microsoft Visual C++ edited resources
+#include "afxres.rc"     // Standard components
+#endif
+
+/////////////////////////////////////////////////////////////////////////////
+#endif    // not APSTUDIO_INVOKED
+

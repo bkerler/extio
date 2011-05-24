@@ -1,0 +1,20 @@
+fusb_win32.cc:
+std::m -> /*std::*/m
+
+usrp_basic.cc:
+std::m -> /*std::*/m
+
+usrp_dbid.cc:
+snprintf -> _snprintf
+
+usrp_prims_common.cc:
+our_nanosleep
+fopen("ra" -> "rt")
+get_proto_filename -> const string& <- &
+
+nanosleep implementation
+
+std_paths.h:
+Added first "."
+
+* REMOVE #define our_nanosleep from config.h
