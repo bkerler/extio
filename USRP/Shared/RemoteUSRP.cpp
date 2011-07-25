@@ -2,6 +2,7 @@
 #include "USRP.h"
 
 #include "BorIP.h"
+#include "..\Winrad\threadWait.h"	// FIXME: This file is in Shared
 
 RemoteUSRP::RemoteUSRP(CRuntimeClass* pSocket /*= NULL*/)
 	: m_pClient(NULL)
@@ -13,6 +14,7 @@ RemoteUSRP::RemoteUSRP(CRuntimeClass* pSocket /*= NULL*/)
 	, m_hQuitEvent(NULL)
 	, m_hPacketEvent(NULL)
 	, m_hStopEvent(NULL)
+	, m_bAbortEvent(NULL)
 	, m_hDataSocket(INVALID_SOCKET)
 	, m_pNetworkBuffer(NULL)
 	, m_nNetworkBufferSize(256)
@@ -26,8 +28,12 @@ RemoteUSRP::RemoteUSRP(CRuntimeClass* pSocket /*= NULL*/)
 	, m_nBufferOverrun(0)
 	, m_nLastSkip(0)
 	, m_pSocketClass(pSocket)
+	, m_hAbortPump(NULL)
 {
 	ZERO_MEMORY(m_wsaOverlapped);
+
+	m_hAbortPump = CreateEvent(NULL, FALSE, FALSE, NULL);
+	ASSERT(m_hAbortPump);
 }
 
 RemoteUSRP::~RemoteUSRP()
@@ -46,7 +52,13 @@ RemoteUSRP::~RemoteUSRP()
 	if (m_hStopEvent)
 		CloseHandle(m_hStopEvent);
 
+	if (m_bAbortEvent)
+		CloseHandle(m_bAbortEvent);
+
 	SAFE_DELETE_ARRAY(m_pNetworkBuffer);
+
+	if (m_hAbortPump)
+		CloseHandle(m_hAbortPump);
 }
 
 void RemoteUSRP::ResetStats()
@@ -58,6 +70,7 @@ void RemoteUSRP::Reset()
 {
 	ResetEvent(m_hPacketEvent);
 	ResetEvent(m_hStopEvent);
+	ResetEvent(m_bAbortEvent);
 
 	{
 		CSingleLock lock(&m_cs, TRUE);
@@ -75,14 +88,14 @@ void RemoteUSRP::Destroy()
 	SAFE_DELETE(m_pClient);
 }
 
-void RemoteUSRP::Close()
+void RemoteUSRP::Close(bool bAbort /*= false*/)
 {
-	Stop();
+	Stop(bAbort);
+
+	m_bConnected = false;	// Must come before socket Close to prevent callback, after Stop as it checks flag
 
 	if (m_pClient)
 		m_pClient->Close();
-
-	m_bConnected = false;
 
 	m_strExpectedResponse.Empty();
 
@@ -131,7 +144,14 @@ teh_pump_message_loop:
 			((dwTimeout == INFINITE) ||
 			((GetTickCount() - dwStart) < dwTimeout)))
 	{
-		WaitMessage();
+		//WaitMessage();
+
+		DWORD dw = MsgWaitForMultipleObjects(1, &m_hAbortPump, FALSE, INFINITE, QS_ALLINPUT);
+		if (dw == WAIT_OBJECT_0)
+		{
+			AfxTrace(_T("Aborting pumping of message loop\n"));
+			return false;
+		}
 
 		if (m_bPendingResponse == false)
 			return true;
@@ -190,6 +210,8 @@ retry_response_wait:
 
 	if (m_strExpectedResponse.IsEmpty())	// Happens when connection is closed
 		return false;
+	else if (m_strResponse == _T("FAIL"))
+		return false;
 
 	bool bSame = (m_strResponse == m_strExpectedResponse);
 
@@ -241,7 +263,17 @@ bool RemoteUSRP::Connect(LPCTSTR strAddress, LPCTSTR strHint /*= NULL*/)
 	else
 		ResetEvent(m_hStopEvent);
 
+	if (m_bAbortEvent == NULL)
+	{
+		if ((m_bAbortEvent = CreateEvent(NULL, FALSE, FALSE, NULL)) == NULL)
+			return false;
+	}
+	else
+		ResetEvent(m_bAbortEvent);
+
 	Destroy();
+
+	CthreadWait* pWait = NULL;
 
 	if (m_pSocketClass)
 	{
@@ -385,12 +417,16 @@ bool RemoteUSRP::Connect(LPCTSTR strAddress, LPCTSTR strHint /*= NULL*/)
 
 	m_bConnected = true;
 
+	ResetEvent(m_hAbortPump);
+
+	pWait = CthreadWait::_Create(m_hAbortPump, NULL, _T("Setting up device..."));
+
 	if (WaitForResponse(_T("DEVICE")) == false)
 	{
 		goto connect_failure;
 	}
-
-	if ((m_strName.IsEmpty()) || (IS_EMPTY(strHint) == false))
+	// Reception of DEVICE from server will set 'm_strName'
+	if ((/*m_strName.IsEmpty()*/m_strResponseData == _T("-")) || (IS_EMPTY(strHint) == false))
 	{
 		if (IS_EMPTY(strHint))
 			strHint = _T("-");
@@ -399,7 +435,8 @@ bool RemoteUSRP::Connect(LPCTSTR strAddress, LPCTSTR strHint /*= NULL*/)
 			goto connect_failure;
 	}
 
-	if (m_strName.IsEmpty())
+	//if (m_strName.IsEmpty())	// TODO: Determine why initial creation of Legacy device results in blank name
+	if (m_strResponseData == _T("-"))
 	{
 		goto connect_failure;
 	}
@@ -409,6 +446,9 @@ bool RemoteUSRP::Connect(LPCTSTR strAddress, LPCTSTR strHint /*= NULL*/)
 		ASSERT(FALSE);
 		goto connect_failure;
 	}
+
+	//if (SendAndWaitForResponse(_T("HEADER"), _T("ON")) == false)	// Should be on by default for new connection
+	//	goto connect_failure;
 
 	if (SendAndWaitForResponse(_T("RATE")) == false)
 		goto connect_failure;
@@ -421,6 +461,9 @@ bool RemoteUSRP::Connect(LPCTSTR strAddress, LPCTSTR strHint /*= NULL*/)
 
 	if (SendAndWaitForResponse(_T("ANTENNA")) == false)
 		goto connect_failure;
+
+	if (pWait)
+		pWait->_Close();
 
 	SAFE_DELETE_ARRAY(m_pBuffer);
 
@@ -438,6 +481,8 @@ bool RemoteUSRP::Connect(LPCTSTR strAddress, LPCTSTR strHint /*= NULL*/)
 
 	return true;
 connect_failure:
+	if (pWait)
+		pWait->_Close();
 	Destroy();
 	return false;
 }
@@ -591,34 +636,49 @@ bool RemoteUSRP::Start()
 
 void RemoteUSRP::Stop()
 {
+	Stop(false);
+}
+
+void RemoteUSRP::Stop(bool bAbort /*= false*/)
+{
 	if (!m_bConnected)
 		return;
 
 	if (m_bRunning == false)
 		return;
 
-	if (SendAndWaitForOK(_T("STOP")) == false)
+	if (bAbort == false)
 	{
-		return;
+		if (m_pClient)
+			m_pClient->_Send(_T("STOP"));	// Can't care about result, so we don't deadlock
+
+		//if (SendAndWaitForOK(_T("STOP")) == false)
+		//{
+		//	return;
+		//}
 	}
 
-	SetEvent(m_hStopEvent);
+	SetEvent((bAbort ? m_bAbortEvent : m_hStopEvent));
 
-	m_bRunning = false;
+	{
+		CSingleLock lock(&m_cs, TRUE);
+
+		m_bRunning = false;
+	}
 }
 
 int RemoteUSRP::ReadPacket()
 {
-	if (m_bRunning == false)
-		return 0;
-
 	CSingleLock lock(&m_cs, TRUE);
+
+	if (m_bRunning == false)
+		return -1;
 
 	if (m_nNetworkBufferItems == 0)
 	{
 		lock.Unlock();
 
-		HANDLE hHandles[] = { m_hStopEvent, m_hPacketEvent };
+		HANDLE hHandles[] = { m_hStopEvent, m_bAbortEvent, m_hPacketEvent };
 	
 		DWORD dw = WaitForMultipleObjects(sizeof(hHandles)/sizeof(hHandles[0]), hHandles, FALSE, INFINITE);
 		if (dw == (WAIT_OBJECT_0 + 0))
@@ -626,6 +686,10 @@ int RemoteUSRP::ReadPacket()
 			return 0;
 		}
 		else if (dw == (WAIT_OBJECT_0 + 1))
+		{
+			return -1;
+		}
+		else if (dw == (WAIT_OBJECT_0 + 2))
 		{
 			lock.Lock();
 		}
@@ -703,7 +767,12 @@ void RemoteUSRP::OnCommand(CsocketClient* pSocket, const CString& str)
 
 	strCommand = strCommand.MakeUpper();
 
-	if (strCommand == _T("DEVICE"))
+	if ((strData == _T("FAIL")) ||
+		(strData == _T("DEVICE")))
+	{
+		// Don't process command as this is an error
+	}
+	else if (strCommand == _T("DEVICE"))
 	{
 		if (strData == _T("-"))
 		{
@@ -777,16 +846,20 @@ void RemoteUSRP::OnCommand(CsocketClient* pSocket, const CString& str)
 				m_strAntenna = strData;
 		}
 	}
+	else if (strCommand == _T("BUSY"))
+	{
+		AfxMessageBox(_T("Server is currently busy with an existing connection"));
+	}
 
 	if (m_bPendingResponse)
 	{
 		m_strResponse = strCommand;
 		m_strResponseData = strData;
 
-		//PostQuitMessage(0);
+		//PostQuitMessage(0);	// This won't work since min/max filter only checks for socket notifications
 
 		m_bPendingResponse = false;
-		PostMessage(NULL, WM_USER, 0, 0);	// Anything to kick the message pump
+		PostMessage(NULL, WM_USER, 0, 0);	// [Anything to kick the message pump] FIXME: Same as above, but doesn't matter because nothing is async
 	}
 }
 
@@ -798,7 +871,8 @@ void RemoteUSRP::OnClose(CsocketClient* pSocket)
 		return;
 	}
 
-	Close();
+	if (m_bConnected)
+		Close(true);
 }
 
 DWORD RemoteUSRP::ReceiveThread()

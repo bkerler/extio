@@ -31,7 +31,8 @@ bool CsocketClient::_Send(const CString& str)
 	int iLength = strBuf.GetLength();
 	LPSTR p = strBuf.GetBuffer();
 	int iSent = Send(p, iLength);
-	
+	strBuf.ReleaseBuffer();
+
 	if (iSent == SOCKET_ERROR)
 	{
 		//
@@ -54,7 +55,7 @@ void CsocketClient::OnReceive(int nErrorCode)
 	while (_IsDataAvailable())
 	{
 		int iReceived = Receive(strBuf, iBufferSize);
-		if (iReceived == SOCKET_ERROR)
+		if ((iReceived == SOCKET_ERROR) || (iReceived == 0))	// Disconnect (BUSY) causes 0 to be returned?
 		{
 			break;
 		}

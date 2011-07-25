@@ -15,18 +15,23 @@ CthreadWait::CthreadWait()
 	: m_hEvent(NULL)
 	, m_pDialog(NULL)
 	, m_hWnd(NULL)
+	, m_hCreatedEvent(NULL)
 {
+	m_hCreatedEvent = CreateEvent(NULL, FALSE, FALSE, NULL);
+	ASSERT(m_hCreatedEvent);
 }
 
 CthreadWait::~CthreadWait()
 {
+	if (m_hCreatedEvent)
+		CloseHandle(m_hCreatedEvent);
 }
 
 BOOL CthreadWait::InitInstance()
 {
-	//m_hEvent = CreateEvent(NULL, FALSE, FALSE, NULL);
-	//if (m_hEvent == NULL)
-	//	return FALSE;
+	/*m_hEvent = CreateEvent(NULL, FALSE, FALSE, NULL);
+	if (m_hEvent == NULL)
+		return FALSE;*/
 
 	m_pDialog = new CdialogWait(this, /*CWnd::FromHandle(m_hWnd)*/NULL);
 	if (m_pDialog->Create(CdialogWait::IDD, /*CWnd::FromHandle(m_hWnd)*/NULL) == FALSE)
@@ -36,6 +41,10 @@ BOOL CthreadWait::InitInstance()
 
 	m_pDialog->SetForegroundWindow();
 	//m_pDialog->Activate();
+
+	//Teh::Utils::PumpMessageLoop();	// FIXME: Necessary to pump messages?
+
+	SetEvent(m_hCreatedEvent);
 
 	return TRUE;
 }
@@ -79,10 +88,14 @@ CthreadWait* CthreadWait::_Create(HANDLE hEvent, HWND hWnd /*= NULL*/, LPCTSTR s
 
 	pThread->ResumeThread();
 
+	WaitForSingleObject(pThread->m_hCreatedEvent, INFINITE);
+
 	return pThread;
 }
 
-void CthreadWait::_Close()
+void CthreadWait::_Close(bool bResetEvent /*= true*/)
 {
+	ResetEvent(m_hEvent);
+
 	PostThreadMessage(WM_QUIT, 0, 0);
 }

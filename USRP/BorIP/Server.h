@@ -48,6 +48,7 @@ public:
 	SOCKADDR_IN m_addrDest;
 	UINT m_nMaxPacketSize;
 	ServerCallback* m_pCallback;
+	bool m_bHeaderless;
 public:
 	UINT m_nReadFailures;
 	UINT m_nShortReads;
@@ -63,7 +64,7 @@ public:
 	void SetCallback(ServerCallback* pCallback)
 	{ m_pCallback = pCallback; }
 public:
-	bool Initialise(ServerCallback* pCallback = NULL);
+	bool Initialise(ServerCallback* pCallback = NULL, int iListenerPort = 0);
 	void Destroy();
 	void Reset();
 	void OnAccept();

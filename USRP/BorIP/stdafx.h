@@ -46,7 +46,9 @@
 #endif
 #endif
 */
+#define TEH_INCLUDE_MANIFEST
 #include <TehBase\TehManifest.h>
+
 #include <TehBase\TehAfx.h>
 #include <afxcontrolbars.h>     // MFC support for ribbons and control bars
 

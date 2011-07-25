@@ -59,6 +59,8 @@ BOOL CappMain::InitInstance()
 	// such as the name of your company or organization
 	SetRegistryKey(_T("Baz's Appz"));
 
+	ParseCommandLine(m_cli);
+
 	CdialogMain dlg(&m_server);
 
 	INT_PTR nResponse = IDCANCEL;
@@ -68,12 +70,15 @@ BOOL CappMain::InitInstance()
 
 	m_pMainWnd = &dlg;
 
-	if (m_server.Initialise(&dlg) == false)
+	if (m_server.Initialise(&dlg, m_cli.m_iListenerPort) == false)
 	{
 		AfxMessageBox(_T("Failed to initialise server"));
 	}
 	else
 	{
+		if (m_cli.m_bDeviceSet)
+			m_server.CreateDevice(m_cli.m_strDeviceHint);
+
 		nResponse = dlg./*DoModal*/RunModalLoop();
 	}
 

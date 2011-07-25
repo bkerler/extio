@@ -35,26 +35,48 @@ bool LegacyUSRP::Create(LPCTSTR strHint /*= NULL*/)
 	//if (m_u_rx)
 	//	return false;
 
-	unsigned int subdev = 0;
+	unsigned int unit = 0, side = 0, subdev = 0;
 
 	CStringArray array;
 	if (Teh::Utils::Tokenise(strHint, array, _T(' ')))
 	{
-		subdev = _tstoi(array[0]);
+		unit = _tstoi(array[0]);
 
 		if (array.GetCount() > 1)
 		{
-			m_strImage = array[1];
+			CStringA strSide(array[1]);
+			strSide.MakeUpper();
+			side = atoi(strSide.Left(1));
+			if ((side == 0) && (strSide[0] != '0'))
+				side = (int)strSide[0] - (int)'A';
 
-			if (m_strImage.IsEmpty())
-				m_strImage = DEFAULT_IMAGE;
+			if ((strSide.GetLength() > 2) && (strSide[1] == ':'))
+			{
+				CStringA strSubDev(strSide.Mid(2));
+				subdev = atoi(strSubDev);
+				if ((subdev == 0) && (strSubDev != _T("0")))
+				{
+					if (strSubDev == _T("AB"))
+						subdev = 3;
+					else if (strSubDev.GetLength() == 1)
+						subdev = (int)strSubDev[0] - (int)'A';
+				}
+			}
+		}
+
+		if (array.GetCount() > 2)
+		{
+			m_strImage = array[2];
 		}
 	}
 
-	usrp_subdev_spec ss(subdev, 0);
+	if (m_strImage.IsEmpty())
+		m_strImage = DEFAULT_IMAGE;
+
+	usrp_subdev_spec ss(side, subdev);
 
 	m_u_rx = usrp_standard_rx::make(
-			0,
+			unit,
 			m_nDecimation,
 			m_nChannel,
 			m_iMux,
@@ -81,14 +103,14 @@ bool LegacyUSRP::Create(LPCTSTR strHint /*= NULL*/)
 
 	if(m_u_rx->is_valid(ss) == false)
 	{
-		AfxTrace(_T("Invalid daughterboard\n"));
+		AfxTrace(_T("Invalid sub-device specification\n"));
 		return false;
 	}
 
 	m_db_rx = m_u_rx->selected_subdev(ss);
 	if (!m_db_rx)
 	{
-		AfxTrace(_T("No daughterboard\n"));
+		AfxTrace(_T("No daughterboard/sub-device found given specification\n"));
 		return false;
 	}
 
@@ -252,7 +274,9 @@ std::vector<std::string> LegacyUSRP::GetAntennas() const
 
 	array.push_back("TX/RX");
 	array.push_back("RX2");
-	// FIXME: Add the rest
+	array.push_back("RXA");
+	array.push_back("RXB");
+	array.push_back("RXAB");
 
 	return array;
 }

@@ -6,10 +6,43 @@
 #include "dialogExtIO.h"
 
 #include "ExtIO_USRP.h"
+#include "MemoryUSRP.h"
 
 #define REGISTRY_PROFILE_SECTION	_T("Settings")
 #include <TehBase\TehAfxRegistryProfile.h>
 
+#define IDM_ABOUTBOX                    0x0010
+
+class CAboutDlg : public CDialog
+{
+public:
+	CAboutDlg();
+// Dialog Data
+	enum { IDD = IDD_ABOUTBOX };
+protected:
+	virtual void DoDataExchange(CDataExchange* pDX);    // DDX/DDV support
+// Implementation
+protected:
+	DECLARE_MESSAGE_MAP()
+public:
+	afx_msg void OnNMClickSyslinkWww(NMHDR *pNMHDR, LRESULT *pResult);
+	afx_msg void OnBnClickedButtonWww();
+};
+
+CAboutDlg::CAboutDlg() : CDialog(CAboutDlg::IDD)
+{
+}
+
+void CAboutDlg::DoDataExchange(CDataExchange* pDX)
+{
+	CDialog::DoDataExchange(pDX);
+}
+
+BEGIN_MESSAGE_MAP(CAboutDlg, CDialog)
+	ON_BN_CLICKED(IDC_BUTTON_WWW, &CAboutDlg::OnBnClickedButtonWww)
+END_MESSAGE_MAP()
+
+///////////////////////////////////////////////////////////////////////////////
 // CdialogExtIO dialog
 
 IMPLEMENT_DYNAMIC(CdialogExtIO, CDialog)
@@ -50,13 +83,152 @@ BEGIN_MESSAGE_MAP(CdialogExtIO, CDialog)
 	ON_BN_CLICKED(IDC_CHECK_REMOTE, &CdialogExtIO::OnBnClickedCheckRemote)
 	ON_BN_CLICKED(IDC_CHECK_OFFSET, &CdialogExtIO::OnBnClickedCheckOffset)
 	ON_EN_CHANGE(IDC_EDIT_REMOTE_ADDRESS, &CdialogExtIO::OnEnChangeEditRemoteAddress)
+	ON_BN_CLICKED(IDC_CHECK_RELAY_TO_UDP_SOURCE, &CdialogExtIO::OnBnClickedCheckRelayToUdpSource)
+	ON_BN_CLICKED(IDC_CHECK_ENABLE_RELAY_XMLRPC, &CdialogExtIO::OnBnClickedCheckEnableRelayXmlrpc)
+	ON_EN_CHANGE(IDC_EDIT_OFFSET, &CdialogExtIO::OnEnChangeEditOffset)
+	ON_BN_CLICKED(IDC_BUTTON_SET_UDP_SOURCE_DESTINATION, &CdialogExtIO::OnBnClickedButtonSetUdpSourceDestination)
+	ON_BN_CLICKED(IDC_BUTTON_SET_XMLRPC_IF_PORT, &CdialogExtIO::OnBnClickedButtonSetXmlrpcIfPort)
+	ON_WM_SYSCOMMAND()
+	ON_BN_CLICKED(IDC_BUTTON_ABOUT, &CdialogExtIO::OnBnClickedButtonAbout)
 END_MESSAGE_MAP()
 
 // CdialogExtIO message handlers
+/*
+void PASCAL _myFilterToolTipMessage(MSG* pMsg, CWnd* pWnd)
+{
+	((CdialogExtIO*)pWnd)->myFilterToolTipMessage(pMsg);
+}
+*//*
+typedef struct tagAFX_OLDTOOLINFO {
+	UINT cbSize;
+	UINT uFlags;
+	HWND hwnd;
+	UINT uId;
+	RECT rect;
+	HINSTANCE hinst;
+	LPTSTR lpszText;
+	LPARAM lParam;
+} AFX_OLDTOOLINFO;
+*//*
+static WNDPROC _myOldEditProc;
+
+static LRESULT CALLBACK _myEditProc(HWND hWnd, UINT nMsg, WPARAM wParam, LPARAM lParam)
+{
+//	AfxTrace(_T("Remote address: %08x %04x %08x %08x [%i 0x%08x]\n"), hWnd, nMsg, wParam, lParam, _bInside.GetData()->i, AfxGetThread());
+
+	MSG msg;
+	msg.hwnd = hWnd;
+	msg.message = nMsg;
+	msg.wParam = wParam;
+	msg.lParam = lParam;
+
+//if (nMsg == 0x0200)
+//	nMsg = 0x0200;
+//else if (nMsg == 0x20)
+//	nMsg = 0x20;
+//if (AfxGetThread())
+//	nMsg = nMsg;
+
+	PTMRC* pPTMRC = _ptmrc.GetData();
+
+	if (pPTMRC->RefIncCount() == 1)
+	{
+		AFX_MANAGE_STATE(AfxGetStaticModuleState());
+
+		msg.pt = CPoint(::GetMessagePos());
+		msg.time = ::GetMessageTime();
+
+		if (AfxInternalPreTranslateMessage(&msg))
+		{
+			pPTMRC->RefDecCount();
+			return 0;
+		}
+
+		//HWND hParent = GetParent(hWnd);
+		//CdialogExtIO* p = (CdialogExtIO*)CWnd::FromHandlePermanent(hParent);
+		//p->myFilterToolTipMessage(&msg);
+	}
+
+	pPTMRC->RefDecCount();	// Must be done before so _AfxWndProcDllStatic manages static module state once more
+
+	return CallWindowProc(_myOldEditProc, hWnd, nMsg, wParam, lParam);
+}
+*/
+static WNDPROC _GetOldProc(HWND hWnd)
+{
+	HWND hParent = GetParent(hWnd);
+	CdialogExtIO* p = (CdialogExtIO*)CWnd::FromHandlePermanent(hParent);
+	CdialogExtIO::SUBCLASSINFO& info = p->m_mapSubclasses[hWnd];
+	return info.pfnWndProc;
+}
+
+static LRESULT CALLBACK _PTMProc(HWND hWnd, UINT nMsg, WPARAM wParam, LPARAM lParam)
+{
+	MSG msg;
+	msg.hwnd = hWnd;
+	msg.message = nMsg;
+	msg.wParam = wParam;
+	msg.lParam = lParam;
+
+	PTMRC* pPTMRC = _ptmrc.GetData();
+
+	WNDPROC pOld = NULL;
+
+	if (pPTMRC->RefIncCount() == 1)
+	{
+		AFX_MANAGE_STATE(AfxGetStaticModuleState());
+
+		msg.pt = CPoint(::GetMessagePos());
+		msg.time = ::GetMessageTime();
+
+		/*if (AfxInternalPreTranslateMessage(&msg))	// Can't do full PTM because key strokes become doubled-up in text boxes
+		{
+			pPTMRC->RefDecCount();
+			return 0;
+		}*/
+
+		HWND hParent = GetParent(hWnd);
+		CdialogExtIO* p = (CdialogExtIO*)CWnd::FromHandlePermanent(hParent);
+		p->FilterToolTipMessage(&msg);
+
+		pOld = _GetOldProc(hWnd);
+	}
+	else
+	{
+		AFX_MANAGE_STATE(AfxGetStaticModuleState());
+
+		pOld = _GetOldProc(hWnd);
+	}
+
+	pPTMRC->RefDecCount();	// Must be done before so _AfxWndProcDllStatic manages static module state once more
+
+	ASSERT(pOld);
+	return CallWindowProc(pOld, hWnd, nMsg, wParam, lParam);
+}
 
 BOOL CdialogExtIO::OnInitDialog()
 {
 	CDialog::OnInitDialog();
+
+	// Add "About..." menu item to system menu.
+
+	// IDM_ABOUTBOX must be in the system command range.
+	ASSERT((IDM_ABOUTBOX & 0xFFF0) == IDM_ABOUTBOX);
+	ASSERT(IDM_ABOUTBOX < 0xF000);
+
+	CMenu* pSysMenu = GetSystemMenu(FALSE);
+	if (pSysMenu != NULL)
+	{
+		BOOL bNameValid;
+		CString strAboutMenu;
+		bNameValid = strAboutMenu.LoadString(IDS_ABOUTBOX);
+		ASSERT(bNameValid);
+		if (!strAboutMenu.IsEmpty())
+		{
+			pSysMenu->InsertMenu(0, MF_BYPOSITION | MF_SEPARATOR);
+			pSysMenu->InsertMenu(0, MF_BYPOSITION | MF_STRING, IDM_ABOUTBOX, strAboutMenu);
+		}
+	}
 
 	//////////////////////////////////
 
@@ -65,15 +237,93 @@ BOOL CdialogExtIO::OnInitDialog()
 	SetDlgItemText(IDC_EDIT_DEVICE_HINT, m_pUSRP->GetDevice());
 
 	SetDlgItemText(IDC_EDIT_REMOTE_ADDRESS, m_pUSRP->GetRemoteAddress());
-	if (m_pUSRP->GetRemoteAddress().IsEmpty() == false)
+	//if (m_pUSRP->GetRemoteAddress().IsEmpty() == false)
+	if (m_pUSRP->IsUsingRemoteDevice())
 		CheckDlgButton(IDC_CHECK_REMOTE, BST_CHECKED);
 
 	_CreateUI();
 
 	//////////////////////////////////
 
+	static UINT nIDs[] = {
+		//IDC_COMBO_ANTENNA,
+		//IDC_COMBO_SAMPLE_RATE,
+		IDC_EDIT_REMOTE_ADDRESS,
+		IDC_EDIT_DEVICE_HINT,
+		IDC_EDIT_OFFSET,
+		IDC_CHECK_REMOTE,
+		IDC_CHECK_OFFSET,
+		IDC_BUTTON_CREATE_DEVICE,
+		IDC_BUTTON_SET_SAMPLE_RATE,
+		// These only started working after group box was deleted, then restored (change in Z-order affects parent relationship?)
+		IDC_CHECK_RELAY_TO_UDP_SOURCE,
+		IDC_CHECK_ENABLE_RELAY_XMLRPC,
+		IDC_BUTTON_SET_UDP_SOURCE_DESTINATION,
+		IDC_BUTTON_SET_XMLRPC_IF_PORT,
+		IDC_EDIT_UDP_SOURCE_DESTINATION,
+		IDC_EDIT_XMLRPC_IF_PORT
+	};
+
+	for (int i = 0; i < (sizeof(nIDs) / sizeof(nIDs[0])); ++i)
+	{
+		HWND hWnd = GetDlgItem(nIDs[i])->GetSafeHwnd();
+		ASSERT(hWnd);
+		WNDPROC pOld = (WNDPROC)::GetWindowLongPtr(hWnd, GWLP_WNDPROC);
+		ASSERT(pOld);
+		::SetWindowLongPtr(hWnd, GWLP_WNDPROC, (LONG_PTR)_PTMProc);
+		SUBCLASSINFO info = { hWnd, pOld };
+		m_mapSubclasses[hWnd] = info;
+	}
+
+	//_myOldEditProc = (WNDPROC)::GetWindowLongPtr(GetDlgItem(IDC_EDIT_REMOTE_ADDRESS)->GetSafeHwnd(), GWLP_WNDPROC);
+	//::SetWindowLongPtr(GetDlgItem(IDC_EDIT_REMOTE_ADDRESS)->GetSafeHwnd(), GWLP_WNDPROC, (LONG_PTR)_myEditProc);
+
 	EnableToolTips();
 
+/*	{
+		BOOL bEnable = TRUE; UINT nFlag = WF_TOOLTIPS;
+
+		ASSERT(nFlag == WF_TOOLTIPS || nFlag == WF_TRACKINGTOOLTIPS);
+
+		AFX_MODULE_THREAD_STATE* pModuleThreadState = AfxGetModuleThreadState();
+		CToolTipCtrl* pToolTip = pModuleThreadState->m_pToolTip;
+
+		if (!bEnable)
+		{
+			// nothing to do if tooltips not enabled
+			if (!(m_nFlags & nFlag))
+				return TRUE;
+
+			// cancel tooltip if this window is active
+			if (pModuleThreadState->m_pLastHit == this)
+				CancelToolTips(TRUE);
+
+			// remove "dead-area" toolbar
+			if (pToolTip->GetSafeHwnd() != NULL)
+			{
+				TOOLINFO ti; memset(&ti, 0, sizeof(TOOLINFO));
+				ti.cbSize = sizeof(AFX_OLDTOOLINFO);
+				ti.uFlags = TTF_IDISHWND;
+				ti.hwnd = m_hWnd;
+				ti.uId = (UINT_PTR)m_hWnd;
+				pToolTip->SendMessage(TTM_DELTOOL, 0, (LPARAM)&ti);
+			}
+
+			// success
+			m_nFlags &= ~nFlag;
+			return TRUE;
+		}
+
+		// if already enabled for tooltips, nothing to do
+		if (!(m_nFlags & nFlag))
+		{
+			// success
+			AFX_MODULE_STATE* pModuleState = _AFX_CMDTARGET_GETSTATE();
+			pModuleState->m_pfnFilterToolTipMessage = _myFilterToolTipMessage;
+			m_nFlags |= nFlag;
+		}
+	}
+*/
 	CRect rectWindow;
 	ZERO_MEMORY(rectWindow);
 	LOAD_BINARY(rectWindow);
@@ -88,37 +338,51 @@ void CdialogExtIO::_CreateUI()
 {
 	IUSRP* pUSRP = m_pUSRP->GetUSRP();
 	if (pUSRP == NULL)
+	{
+		_UpdateUI(UF_RELAY);
 		return;
+	}
 
 	m_cntrlCombo_Antenna.ResetContent();
 
 	std::vector<std::string> array = pUSRP->GetAntennas();
-	int iSelected = -1;
-	for (std::vector<std::string>::iterator it = array.begin(); it != array.end(); ++it)
+	if (array.empty())
 	{
-		CStringA strA((*it).c_str());
-		CString str(strA);
-
-		int iIndex = m_cntrlCombo_Antenna.AddString(str);
-
-		if (CString(pUSRP->GetAntenna()).CompareNoCase(str) == 0)
-		{
-			ASSERT(iSelected == -1);
-
-			iSelected = iIndex;
-		}
+		_Log(_T("Antenna list is empty - is your daughterboard loose?"));
 	}
+	else
+	{
+		int iSelected = -1;
+		for (std::vector<std::string>::iterator it = array.begin(); it != array.end(); ++it)
+		{
+			CStringA strA((*it).c_str());
+			CString str(strA);
 
-	if (iSelected == -1)
-		iSelected = 0;
+			int iIndex = m_cntrlCombo_Antenna.AddString(str);
 
-	m_cntrlCombo_Antenna.SetCurSel(iSelected);
+			if (pUSRP->GetAntenna().CompareNoCase(str) == 0)
+			{
+				ASSERT(iSelected == -1);
+
+				iSelected = iIndex;
+			}
+		}
+
+		if (iSelected == -1)
+		{
+			_Log(_T("Selected antenna not found in antenna list: \"") + pUSRP->GetAntenna() + "\"");
+
+			iSelected = 0;
+		}
+
+		m_cntrlCombo_Antenna.SetCurSel(iSelected);
+	}
 
 	////////////////////////////////////////
 
 	m_cntrlCombo_SampleRate.ResetContent();
 
-	iSelected = -1;
+	int iSelected = -1;
 	for (int i = 4, j = 0; i <= 256; i *= 2, ++j)
 	{
 		double d = (pUSRP->GetMasterClock() / (double)i);
@@ -193,31 +457,38 @@ void CdialogExtIO::_UpdateUI(DWORD dwFlags /*= UF_ALL*/)
 {
 	IUSRP* pUSRP = m_pUSRP->GetUSRP();
 
-	if (pUSRP == NULL)
-	{
-		if (dwFlags & UF_WINDOW_TITLE)
-			SetWindowText(_T("USRP"));
-
-		return;
-	}
-
 	if (dwFlags & UF_WINDOW_TITLE)
-		SetWindowText(CString(_T("USRP: ")) + pUSRP->GetName());
+	{
+		if (pUSRP)
+		{
+			if (CAN_CAST(pUSRP, MemoryUSRP))
+				SetWindowText(_T("Playback"));
+			else
+			{
+				CString strName(pUSRP->GetName());
+				if (strName.IsEmpty())
+					strName = _T("(no name)");
+				SetWindowText(CString(_T("USRP: ")) + strName);
+			}
+		}
+		else
+			SetWindowText(_T("USRP"));
+	}
 
 	////////////////////////////////////////
 
 	CString str, strBuf;
 
-	if (dwFlags & UF_GAIN_RANGE)
+	if ((pUSRP) && (dwFlags & UF_GAIN_RANGE))
 	{
 		str.Format(_T("%.1f - %.1f"), pUSRP->GetGainRange().start(), pUSRP->GetGainRange().stop());
 		SetDlgItemText(IDC_EDIT_GAIN_RANGE, str);
 	}
 
-	if (dwFlags & UF_GAIN_VALUE)
+	if ((pUSRP) && (dwFlags & UF_GAIN_VALUE))
 		SetDlgItemText(IDC_EDIT_GAIN_VALUE, Teh::Utils::ToString(m_pUSRP->GetGain()));
 
-	if (dwFlags & UF_GAIN_SLIDER)
+	if ((pUSRP) && (dwFlags & UF_GAIN_SLIDER))
 	{
 		//double dGain = (100.0 * (m_pUSRP->GetGain() - pUSRP->GetGainRange().start())) / (pUSRP->GetGainRange().stop() - pUSRP->GetGainRange().start());
 		double dGain = (m_pUSRP->GetGain() - pUSRP->GetGainRange().start()) / (pUSRP->GetGainRange().step());
@@ -225,7 +496,7 @@ void CdialogExtIO::_UpdateUI(DWORD dwFlags /*= UF_ALL*/)
 		m_cntrlSlider_Gain.SetPos(CLAMP(m_cntrlSlider_Gain.GetRangeMin(), (int)dGain, m_cntrlSlider_Gain.GetRangeMax()));
 	}
 
-	if (dwFlags & UF_TUNE_INFO)
+	if ((pUSRP) && (dwFlags & UF_TUNE_INFO))
 	{
 		strBuf.Empty();
 
@@ -250,7 +521,7 @@ void CdialogExtIO::_UpdateUI(DWORD dwFlags /*= UF_ALL*/)
 		SetDlgItemText(IDC_EDIT_TUNE_INFO, strBuf);
 	}
 
-	if (dwFlags & UF_STATISTICS)
+	if ((pUSRP) && (dwFlags & UF_STATISTICS))
 	{
 		str.Format(_T("Master:\t\t%s\nSamples/packet:\t%lu\nSamples:\t\t%I64i (%lu overflows)"),
 			FormatFrequency(pUSRP->GetMasterClock()),
@@ -264,6 +535,22 @@ void CdialogExtIO::_UpdateUI(DWORD dwFlags /*= UF_ALL*/)
 
 		str.Replace(_T("\n"), _T("\r\n"));
 		SetDlgItemText(IDC_EDIT_STATISTICS, str);
+	}
+
+	if (dwFlags & UF_RELAY)
+	{
+		CheckDlgButton(IDC_CHECK_RELAY_TO_UDP_SOURCE, (m_pUSRP->IsUDPRelayEnabled() ? BST_CHECKED : BST_UNCHECKED));
+		CheckDlgButton(IDC_CHECK_ENABLE_RELAY_XMLRPC, (m_pUSRP->IsXMLRPCIFEnabled() ? BST_CHECKED : BST_UNCHECKED));
+
+		SetDlgItemText(IDC_EDIT_UDP_SOURCE_DESTINATION, m_pUSRP->GetUDPRelayAddress());
+		SetDlgItemInt(IDC_EDIT_XMLRPC_IF_PORT, m_pUSRP->GetXMLRPCIFPort());
+	}
+
+	if ((pUSRP) && (dwFlags & UF_OFFSET))
+	{
+		CheckDlgButton(IDC_CHECK_OFFSET, (m_pUSRP->IsOffset() ? BST_CHECKED : BST_UNCHECKED));
+
+		SetDlgItemInt(IDC_EDIT_OFFSET, m_pUSRP->GetOffset());
 	}
 }
 
@@ -475,17 +762,446 @@ void CdialogExtIO::OnBnClickedCheckRemote()
 		}
 	}
 	else
-		m_pUSRP->SetRemoteAddress(NULL);
+	{
+		//m_pUSRP->SetRemoteAddress(NULL);
+		m_pUSRP->UseRemoveDevice(false);
+	}
 }
 
 void CdialogExtIO::OnBnClickedCheckOffset()
 {
-	//IsDlgButtonChecked(IDC_CHECK_OFFSET)
+	if (IsDlgButtonChecked(IDC_CHECK_OFFSET))
+	{
+		BOOL bTrans;
+		int iOffset = (int)GetDlgItemInt(IDC_EDIT_OFFSET, &bTrans);
+		/*if (bTrans == FALSE)
+		{
+			CheckDlgButton(IDC_CHECK_OFFSET, BST_UNCHECKED);
+			AfxMessageBox(_T("Enter a valid offset"));
+			return;
+		}*/
+
+		m_pUSRP->SetOffset(iOffset);
+		m_pUSRP->UseOffset(true);
+	}
+	else
+	{
+		m_pUSRP->UseOffset(false);
+	}
+}
+
+void CdialogExtIO::OnEnChangeEditOffset()
+{
+	if (IsDlgButtonChecked(IDC_CHECK_OFFSET))
+	{
+		BOOL bTrans;
+		int iOffset = (int)GetDlgItemInt(IDC_EDIT_OFFSET, &bTrans);
+		/*if (bTrans == FALSE)
+		{
+			CheckDlgButton(IDC_CHECK_OFFSET, BST_UNCHECKED);
+			AfxMessageBox(_T("Enter a valid offset"));
+			return;
+		}*/
+
+		m_pUSRP->SetOffset(iOffset);
+		m_pUSRP->UseOffset(true);
+	}
 }
 
 void CdialogExtIO::OnEnChangeEditRemoteAddress()
 {
+	if (IsDlgButtonChecked(IDC_CHECK_REMOTE))
+	{
+		CString str;
+		GetDlgItemText(IDC_EDIT_REMOTE_ADDRESS, str);
+		m_pUSRP->SetRemoteAddress(str);
+	}
+}
+
+void CdialogExtIO::OnBnClickedCheckRelayToUdpSource()
+{
+	if (IsDlgButtonChecked(IDC_CHECK_RELAY_TO_UDP_SOURCE))
+	{
+		CString strDestination;
+		GetDlgItemText(IDC_EDIT_UDP_SOURCE_DESTINATION, strDestination);
+		if (strDestination.IsEmpty() == false)
+		{
+			if (m_pUSRP->EnableUDPRelay(strDestination))
+				_Log(_T("Enabled relay"));
+			else
+				AfxMessageBox(_T("Failed to enable relay"));
+		}
+		else
+		{
+			CheckDlgButton(IDC_CHECK_RELAY_TO_UDP_SOURCE, BST_UNCHECKED);
+			AfxMessageBox(_T("Cannot enable relay without destination"));
+		}
+	}
+	else
+	{
+		m_pUSRP->DisableUDPRelay();
+		_Log(_T("Disabled relay"));
+	}
+}
+
+void CdialogExtIO::OnBnClickedCheckEnableRelayXmlrpc()
+{
+	if (IsDlgButtonChecked(IDC_CHECK_ENABLE_RELAY_XMLRPC))
+	{
+		if (m_pUSRP->IsUDPRelayEnabled() == false)
+		{
+			CheckDlgButton(IDC_CHECK_ENABLE_RELAY_XMLRPC, BST_UNCHECKED);
+			AfxMessageBox(_T("Enable UDP relay first"));
+			return;
+		}
+
+		BOOL bTrans;
+		int iPort = (int)GetDlgItemInt(IDC_EDIT_XMLRPC_IF_PORT, &bTrans, FALSE);
+		if (iPort <= 0)
+		{
+			CheckDlgButton(IDC_CHECK_ENABLE_RELAY_XMLRPC, BST_UNCHECKED);
+			AfxMessageBox(_T("Invalid port"));
+			return;
+		}
+
+		if (m_pUSRP->EnableXMLRPCIF(iPort))
+			_Log(_T("Enabled XMLRPC IF"));
+		else
+			AfxMessageBox(_T("Failed to enable XML-RPC IF"));
+	}
+	else
+	{
+		m_pUSRP->DisableXMLRPCIF();
+		_Log(_T("Disabled XML-RPC IF"));
+	}
+}
+
+void CdialogExtIO::OnBnClickedButtonSetUdpSourceDestination()
+{
 	CString str;
-	GetDlgItemText(IDC_EDIT_REMOTE_ADDRESS, str);
-	m_pUSRP->SetRemoteAddress(str);
+	GetDlgItemText(IDC_EDIT_UDP_SOURCE_DESTINATION, str);
+	if (m_pUSRP->SetUDPRelayDestination(str) == false)
+	{
+		AfxMessageBox(_T("Failed to set UDP Source destination"));
+		_UpdateUI(UF_RELAY);
+	}
+}
+
+void CdialogExtIO::OnBnClickedButtonSetXmlrpcIfPort()
+{
+	BOOL bTrans;
+	int iPort = (int)GetDlgItemInt(IDC_EDIT_XMLRPC_IF_PORT, &bTrans, FALSE);
+	if (iPort <= 0)
+	{
+		AfxMessageBox(_T("Invalid port"));
+		_UpdateUI(UF_RELAY);
+		return;
+	}
+
+	if (m_pUSRP->SetXMLRPCIFPort(iPort) == false)
+	{
+		AfxMessageBox(_T("Failed to set XML-RPC IF port"));
+		_UpdateUI(UF_RELAY);
+	}
+}
+/*
+BOOL CdialogExtIO::PreTranslateMessage(MSG* pMsg)
+{
+	//FilterToolTipMessage(pMsg);
+
+//	AfxTrace(_T("CdialogExtIO::PreTranslateMessage hWnd=%08x nMsg=%04x\n"), pMsg->hwnd, pMsg->message);
+//#define WM_MOUSEMOVE                    0x0200
+//#define WM_SETCURSOR                    0x0020
+	return CDialog::PreTranslateMessage(pMsg);
+}
+*//*
+LRESULT CdialogExtIO::WindowProc(UINT message, WPARAM wParam, LPARAM lParam)
+{
+//	MSG msg;
+
+//	msg.message = message;
+//	msg.lParam = lParam;
+//	msg.wParam = wParam;
+
+//	msg.hwnd = GetSafeHwnd();
+//	msg.time = GetTickCount();
+//	GetCursorPos(&msg.pt);
+//AfxTrace(_T("MSG: %lu\n"), message);
+//	FilterToolTipMessage(&msg);
+//	//if (PreTranslateMessage(&msg));
+	//	return 0;
+
+	return CDialog::WindowProc(message, wParam, lParam);
+}
+*//*
+static HWND AFXAPI _myAfxChildWindowFromPoint(HWND hWnd, POINT pt)
+{
+	ASSERT(hWnd != NULL);
+
+	// check child windows
+	::ClientToScreen(hWnd, &pt);
+	HWND hWndChild = ::GetWindow(hWnd, GW_CHILD);
+
+	static int i = 0;
+	AfxTrace(_T("[%08i] Checking "), i++);
+
+	for (; hWndChild != NULL; hWndChild = ::GetWindow(hWndChild, GW_HWNDNEXT))
+	{
+		int i = ::GetDlgCtrlID(hWndChild);
+		//if (i == 3016)
+		//{
+		//	LONG l = ::GetWindowLong(hWndChild, GWL_STYLE);
+		//	l = 0;
+		//}
+
+		if (::GetDlgCtrlID(hWndChild) != (WORD)-1 &&
+			(::GetWindowLong(hWndChild, GWL_STYLE) & WS_VISIBLE))
+		{
+			if (i == 3016)
+			{
+				i=i;
+			}
+			// see if point hits the child window
+			CRect rect;
+			::GetWindowRect(hWndChild, rect);
+			if (rect.PtInRect(pt))
+			{
+				TCHAR str[1024];
+				GetWindowText(hWndChild, str, 1024);
+				AfxTrace(_T("Hit: %s\n"), str);
+				return hWndChild;
+			}
+		}
+	}
+
+	AfxTrace(_T("\n"));
+
+	return NULL;    // not found
+}
+*//*
+INT_PTR CdialogExtIO::OnToolHitTest(CPoint point, TOOLINFO* pTI) const
+{
+	// find child window which hits the point
+	// (don't use WindowFromPoint, because it ignores disabled windows)
+	HWND hWndChild = _myAfxChildWindowFromPoint(m_hWnd, point);
+	if (hWndChild != NULL)
+	{
+		// return positive hit if control ID isn't -1
+		INT_PTR nHit = ::GetDlgCtrlID(hWndChild);
+
+		// hits against child windows always center the tip
+		if (pTI != NULL && pTI->cbSize >= sizeof(AFX_OLDTOOLINFO))
+		{
+			// setup the TOOLINFO structure
+			pTI->hwnd = m_hWnd;
+			pTI->uId = (UINT_PTR)hWndChild;
+			pTI->uFlags |= TTF_IDISHWND;
+			pTI->lpszText = LPSTR_TEXTCALLBACK;
+
+			// set TTF_NOTBUTTON and TTF_CENTERTIP if it isn't a button
+			if (!(::SendMessage(hWndChild, WM_GETDLGCODE, 0, 0) & DLGC_BUTTON))
+				pTI->uFlags |= TTF_NOTBUTTON|TTF_CENTERTIP;
+		}
+		return nHit;
+	}
+	return -1;  // not found
+}
+*//*
+AFX_STATIC void AFXAPI _AfxRelayToolTipMessage(CToolTipCtrl* pToolTip, MSG* pMsg)
+{
+	// transate the message based on TTM_WINDOWFROMPOINT
+	MSG msg = *pMsg;
+	msg.hwnd = (HWND)pToolTip->SendMessage(TTM_WINDOWFROMPOINT, 0, (LPARAM)&msg.pt);
+	CPoint pt = pMsg->pt;
+	if (msg.message >= WM_MOUSEFIRST && msg.message <= AFX_WM_MOUSELAST)
+		::ScreenToClient(msg.hwnd, &pt);
+	msg.lParam = MAKELONG(pt.x, pt.y);
+
+	// relay mouse event before deleting old tool
+	pToolTip->SendMessage(TTM_RELAYEVENT, 0, (LPARAM)&msg);
+}
+
+#define WM_SYSKEYFIRST  WM_SYSKEYDOWN
+#define WM_SYSKEYLAST   WM_SYSDEADCHAR
+
+void CdialogExtIO::myFilterToolTipMessage(MSG* pMsg)
+{
+	// this CWnd has tooltips enabled
+	UINT message = pMsg->message;
+	if ((message == WM_MOUSEMOVE || message == WM_NCMOUSEMOVE ||
+		 message == WM_LBUTTONUP || message == WM_RBUTTONUP ||
+		 message == WM_MBUTTONUP) &&
+		(GetKeyState(VK_LBUTTON) >= 0 && GetKeyState(VK_RBUTTON) >= 0 &&
+		 GetKeyState(VK_MBUTTON) >= 0))
+	{
+		AFX_MODULE_THREAD_STATE* pModuleThreadState = AfxGetModuleThreadState();
+AfxTrace(_T("[%08i] Filtering hWnd=%08x msg=%04x\n"), pMsg->time, pMsg->hwnd, pMsg->message);
+		// make sure that tooltips are not already being handled
+		CWnd* pWnd = CWnd::FromHandle(pMsg->hwnd);
+		while (pWnd != NULL && !(pWnd->m_nFlags & (WF_TOOLTIPS|WF_TRACKINGTOOLTIPS)))
+		{
+			pWnd = pWnd->GetParent();
+		}
+		if (pWnd != this)
+		{
+			CString strThis, strWnd;
+			this->GetWindowText(strThis);
+			if (pWnd)
+				pWnd->GetWindowText(strWnd);
+			AfxTrace(_T("Windows un-equal: this = %08x (%s), pWnd = %08x (%s)\n"), this->GetSafeHwnd(), strThis, pWnd->GetSafeHwnd(), strWnd);
+			if (pWnd == NULL)
+			{
+				// tooltips not enabled on this CWnd, clear last state data
+				pModuleThreadState->m_pLastHit = NULL;
+				pModuleThreadState->m_nLastHit = static_cast<INT_PTR>(-1);
+			}
+			return;
+		}
+
+		CToolTipCtrl* pToolTip = pModuleThreadState->m_pToolTip;
+		CWnd* pOwner = GetParentOwner();
+		if (pToolTip != NULL && pToolTip->GetOwner() != pOwner)
+		{
+			pToolTip->DestroyWindow();
+			delete pToolTip;
+			pModuleThreadState->m_pToolTip = NULL;
+			pToolTip = NULL;
+		}
+		if (pToolTip == NULL)
+		{
+			pToolTip = new CToolTipCtrl;
+			if (!pToolTip->Create(pOwner, TTS_ALWAYSTIP))
+			{
+				delete pToolTip;
+				return;
+			}
+			pToolTip->SendMessage(TTM_ACTIVATE, FALSE);
+			pModuleThreadState->m_pToolTip = pToolTip;
+		}
+
+		ASSERT_VALID(pToolTip);
+		ASSERT(::IsWindow(pToolTip->m_hWnd));
+
+		TOOLINFO ti; memset(&ti, 0, sizeof(TOOLINFO));
+
+		// determine which tool was hit
+		CPoint point = pMsg->pt;
+		::ScreenToClient(m_hWnd, &point);
+		TOOLINFO tiHit; memset(&tiHit, 0, sizeof(TOOLINFO));
+		tiHit.cbSize = sizeof(AFX_OLDTOOLINFO);
+		INT_PTR nHit = OnToolHitTest(point, &tiHit);
+
+		// build new toolinfo and if different than current, register it
+		CWnd* pHitWnd = nHit == -1 ? NULL : this;
+		if (pModuleThreadState->m_nLastHit != nHit || pModuleThreadState->m_pLastHit != pHitWnd)
+		{
+			if (nHit != -1)
+			{
+				// add new tool and activate the tip
+				ti = tiHit;
+				ti.uFlags &= ~(TTF_NOTBUTTON|TTF_ALWAYSTIP);
+				if (m_nFlags & WF_TRACKINGTOOLTIPS)
+					ti.uFlags |= TTF_TRACK;
+				VERIFY(pToolTip->SendMessage(TTM_ADDTOOL, 0, (LPARAM)&ti));
+				if ((tiHit.uFlags & TTF_ALWAYSTIP) || IsTopParentActive())
+				{
+					// allow the tooltip to popup when it should
+					pToolTip->SendMessage(TTM_ACTIVATE, TRUE);
+					if (m_nFlags & WF_TRACKINGTOOLTIPS)
+						pToolTip->SendMessage(TTM_TRACKACTIVATE, TRUE, (LPARAM)&ti);
+
+					// bring the tooltip window above other popup windows
+					::SetWindowPos(pToolTip->m_hWnd, HWND_TOP, 0, 0, 0, 0,
+						SWP_NOACTIVATE|SWP_NOSIZE|SWP_NOMOVE|SWP_NOOWNERZORDER);
+				}
+			}
+			else
+			{
+				pToolTip->SendMessage(TTM_ACTIVATE, FALSE);
+			}
+
+			// relay mouse event before deleting old tool
+			_AfxRelayToolTipMessage(pToolTip, pMsg);
+
+			// now safe to delete the old tool
+			if (pModuleThreadState->m_pLastInfo != NULL &&
+					pModuleThreadState->m_pLastInfo->cbSize >= sizeof(AFX_OLDTOOLINFO))
+				pToolTip->SendMessage(TTM_DELTOOL, 0, (LPARAM)pModuleThreadState->m_pLastInfo);
+
+			pModuleThreadState->m_pLastHit = pHitWnd;
+			pModuleThreadState->m_nLastHit = nHit;
+			if (pModuleThreadState->m_pLastInfo == NULL)
+			{
+				pModuleThreadState->m_pLastInfo = new TOOLINFO;
+				memset(pModuleThreadState->m_pLastInfo, 0, sizeof(TOOLINFO));
+			}
+			*pModuleThreadState->m_pLastInfo = tiHit;
+		}
+		else
+		{
+			if (m_nFlags & WF_TRACKINGTOOLTIPS)
+			{
+				POINT pt;
+
+				::GetCursorPos( &pt );
+				pToolTip->SendMessage(TTM_TRACKPOSITION, 0, MAKELPARAM(pt.x, pt.y));
+			}
+			else
+			{
+				// relay mouse events through the tooltip
+				if (nHit != -1)
+					_AfxRelayToolTipMessage(pToolTip, pMsg);
+			}
+		}
+
+		if ((tiHit.lpszText != LPSTR_TEXTCALLBACK) && (tiHit.hinst == 0))
+			free(tiHit.lpszText);
+	}
+	else if (m_nFlags & (WF_TOOLTIPS|WF_TRACKINGTOOLTIPS))
+	{
+		// make sure that tooltips are not already being handled
+		CWnd* pWnd = CWnd::FromHandle(pMsg->hwnd);
+		while (pWnd != NULL && pWnd != this && !(pWnd->m_nFlags & (WF_TOOLTIPS|WF_TRACKINGTOOLTIPS)))
+			pWnd = pWnd->GetParent();
+		if (pWnd != this)
+			return;
+
+		BOOL bKeys = (message >= WM_KEYFIRST && message <= WM_KEYLAST) ||
+			(message >= WM_SYSKEYFIRST && message <= WM_SYSKEYLAST);
+		if ((m_nFlags & WF_TRACKINGTOOLTIPS) == 0 &&
+			(bKeys ||
+			 (message == WM_LBUTTONDOWN || message == WM_LBUTTONDBLCLK) ||
+			 (message == WM_RBUTTONDOWN || message == WM_RBUTTONDBLCLK) ||
+			 (message == WM_MBUTTONDOWN || message == WM_MBUTTONDBLCLK) ||
+			 (message == WM_NCLBUTTONDOWN || message == WM_NCLBUTTONDBLCLK) ||
+			 (message == WM_NCRBUTTONDOWN || message == WM_NCRBUTTONDBLCLK) ||
+			 (message == WM_NCMBUTTONDOWN || message == WM_NCMBUTTONDBLCLK)))
+		{
+			CWnd::CancelToolTips(bKeys);
+		}
+	}
+}
+*/
+void CdialogExtIO::OnSysCommand(UINT nID, LPARAM lParam)
+{
+	if ((nID & 0xFFF0) == IDM_ABOUTBOX)
+	{
+		CAboutDlg dlgAbout;
+		dlgAbout.DoModal();
+	}
+	else
+	{
+		CDialog::OnSysCommand(nID, lParam);
+	}
+}
+
+void CAboutDlg::OnBnClickedButtonWww()
+{
+	ShellExecute(NULL, _T("open"), _T("http://spench.net/r/ExtIO_USRP"), NULL, NULL, SW_SHOW);
+}
+
+void CdialogExtIO::OnBnClickedButtonAbout()
+{
+	CAboutDlg dlgAbout;
+	dlgAbout.DoModal();
 }

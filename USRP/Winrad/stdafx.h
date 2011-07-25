@@ -39,15 +39,22 @@
 #include <afxsock.h>            // MFC socket extensions
 //#include <afxdhtml.h>
 */
+#define TEH_INCLUDE_MANIFEST
 #include <TehBase\TehManifest.h>
+
 #include <TehBase\TehAfx.h>
 
 #include <psapi.h>
 
+#include <TehBase\TehMemoryContainer.h>
 #include <TehBase\TehUtils.h>
+#include <TehBase\TehRefCounter.h>
 
 #include <uhd/usrp/single_usrp.hpp>
 #include <usrp/libusrp.h>
+
+#include <iostream>
+#include <XmlRpc.h>
 
 #include <complex>
 #include <afxwin.h>

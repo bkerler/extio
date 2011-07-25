@@ -6,6 +6,10 @@
 #include "USRP.h"
 #include "BorIP.h"
 
+#ifdef _DEBUG
+#define new DEBUG_NEW
+#endif
+
 Server::Server()
 	: m_pListener(NULL)
 	, m_pClient(NULL)
@@ -17,6 +21,7 @@ Server::Server()
 	, m_hWorker(0)
 	, m_nMaxPacketSize(0)
 	, m_pCallback(NULL)
+	, m_bHeaderless(false)
 {
 	ZERO_MEMORY(m_addrDest);
 
@@ -43,7 +48,7 @@ void Server::Reset()
 	0;
 }
 
-bool Server::Initialise(ServerCallback* pCallback /*= NULL*/)
+bool Server::Initialise(ServerCallback* pCallback /*= NULL*/, int iListenerPort /*= 0*/)
 {
 	m_pCallback = pCallback;
 
@@ -95,7 +100,7 @@ bool Server::Initialise(ServerCallback* pCallback /*= NULL*/)
 
 	m_pListener = new CsocketListener(this);
 
-	if (m_pListener->Create(BOR_PORT) == FALSE)
+	if (m_pListener->Create(((iListenerPort > 0) ? iListenerPort : BOR_PORT)) == FALSE)
 	{
 		CString str;
 		str.Format(_T("Failed to create listener on port %i"), BOR_PORT);
@@ -110,6 +115,9 @@ bool Server::Initialise(ServerCallback* pCallback /*= NULL*/)
 		Log(str);
 		return false;
 	}
+
+	m_pClient = new CsocketClient(this);
+	ASSERT(m_pClient);
 
 	return true;
 }
@@ -131,6 +139,12 @@ void Server::Log(const CString& str)
 void Server::Destroy()
 {
 	CloseDevice();
+
+	if (m_pClient)
+	{
+		m_pClient->Close();
+		SAFE_DELETE(m_pClient);
+	}
 
 	if (m_pListener)
 	{
@@ -159,7 +173,7 @@ void Server::Destroy()
 
 void Server::OnAccept()
 {
-	if (m_pClient)
+	if (m_pClient->m_hSocket != INVALID_SOCKET)
 	{
 		CsocketClient s;
 
@@ -182,13 +196,13 @@ void Server::OnAccept()
 		return;
 	}
 
-	m_pClient = new CsocketClient(this);
+	//m_pClient = new CsocketClient(this);
 
 	int iLength = sizeof(m_addrDest);
 	if (m_pListener->Accept((*m_pClient), (SOCKADDR*)&m_addrDest, &iLength) == FALSE)
 	{
 		Log(_T("Failed to accept connection"));
-		SAFE_DELETE(m_pClient);
+		//SAFE_DELETE(m_pClient);
 		return;
 	}
 
@@ -209,10 +223,12 @@ void Server::OnAccept()
 
 	m_addrDest.sin_port = htons(BOR_PORT);
 
+	m_bHeaderless = false;
+
 	if (m_pClient->_Send(_T("DEVICE ") + FormatDevice()) == false)
 	{
 		m_pClient->Close();
-		SAFE_DELETE(m_pClient);
+		//SAFE_DELETE(m_pClient);
 		return;
 	}
 }
@@ -484,6 +500,17 @@ void Server::OnCommand(CsocketClient* pSocket, const CString& str)
 			}
 		}
 	}
+	else if (strCommand == _T("HEADER"))
+	{
+		if (strData.IsEmpty() == false)
+		{
+			strData.MakeUpper();
+
+			m_bHeaderless = (strData == _T("OFF"));
+		}
+
+		strResult = (m_bHeaderless ? _T("OFF") : _T("ON"));
+	}
 	else
 		strResult = _T("UNKNOWN");
 
@@ -502,25 +529,35 @@ bool Server::CreateDevice(LPCTSTR strHint /*= NULL*/)
 	int iIndex = -1;
 	CStringArray array;
 	if (Teh::Utils::Tokenise(strHint, array, _T(' ')))
+	{
 		iIndex = _tstoi(array[0]);
+		if ((iIndex == 0) && (array[0] != _T("0")))
+			iIndex = -1;
+	}
 
 	if (iIndex > -1)
 		m_pUSRP = new LegacyUSRP();
 	else
 		m_pUSRP = new USRP();
 
+	CString strFilteredHint(strHint);
+	if (strFilteredHint.IsEmpty())
+		strFilteredHint = _T("(none)");
+
 	if (m_pUSRP->Create(strHint) == false)
 	{
-		CString str;
-		str.Format(_T("Failed to create device with hint: %s"), (strHint ? strHint : _T("(none)")));
-		Log(str);
+		Log(_T("Failed to create device with hint: ") + strFilteredHint);
 
 		SAFE_DELETE(m_pUSRP);
 
 		return false;
 	}
 
-	Log(_T("Created device: ") + m_pUSRP->GetName());
+	CString strName(m_pUSRP->GetName());
+	if (strName.IsEmpty())
+		strName = _T("(no name)");
+
+	Log(_T("Created device: ") + strName + _T(" with hint: ") + strFilteredHint);
 
 	if (m_pCallback)
 	{
@@ -664,7 +701,8 @@ void Server::OnClose(CsocketClient* pClient)
 	if (m_pUSRP)
 		Stop();
 
-	m_pClient = NULL;
+	//m_pClient = NULL;
+	m_pClient->m_hSocket = INVALID_SOCKET;
 }
 
 DWORD Server::Worker()
@@ -750,15 +788,15 @@ DWORD Server::Worker()
 		{
 			AfxMessageBox(_T("Non-zero meta data: ") + Teh::Utils::ToString(m_pUSRP->GetMetadata().error_code));
 		}
-		
+
 		pPacket->idx = usIndex++;
 		//pPacket->sub_idx = 0;
 
-		int iLength = /*sizeof(BOR_PACKET)*/offsetof(BOR_PACKET, data);
+		int iLength = /*sizeof(BOR_PACKET)*/(m_bHeaderless ? 0 : offsetof(BOR_PACKET, data));
 		int iPayloadLength = m_pUSRP->GetSamplesPerPacket() * 2 * sizeof(short);
 		iLength += iPayloadLength;
 
-		memcpy(pPacket->data, m_pUSRP->GetBuffer(), iPayloadLength);
+		memcpy((m_bHeaderless ? p : pPacket->data), m_pUSRP->GetBuffer(), iPayloadLength);
 
 		if (bFirstPacket)
 		{
@@ -768,7 +806,7 @@ DWORD Server::Worker()
 
 		//////////////////////////////////////////////
 
-		wsabuf.buf = (char*)pPacket;
+		wsabuf.buf = (char*)p/*Packet*/;
 		wsabuf.len = iLength;
 
 		ZERO_MEMORY(wsaoverlapped);

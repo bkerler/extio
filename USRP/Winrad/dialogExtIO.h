@@ -25,6 +25,14 @@ private:
 	CComboBox m_cntrlCombo_SampleRate;
 	CComboBox m_cntrlCombo_Antenna;
 	CListBox m_cntrlList_Log;
+private:
+	typedef struct SubclassInfo
+	{
+		HWND hWnd;
+		WNDPROC pfnWndProc;
+	} SUBCLASSINFO;
+	std::map<HWND,SUBCLASSINFO> m_mapSubclasses;
+	friend WNDPROC _GetOldProc(HWND hWnd);
 public:
 	enum UpdateFlags
 	{
@@ -34,7 +42,9 @@ public:
 		UF_GAIN_RANGE	= 0x0004,
 		UF_GAIN_VALUE	= 0x0008,
 		UF_TUNE_INFO	= 0x0010,
-		UF_STATISTICS	= 0x0020
+		UF_STATISTICS	= 0x0020,
+		UF_RELAY		= 0x0040,
+		UF_OFFSET		= 0x0080,
 	};
 public:
 	void _CreateUI();
@@ -42,6 +52,12 @@ public:
 	void _SetGain(double dGain, bool bFromSlider = false);
 	void _ToggleRunning(bool bRunning);
 	void _Log(const CString& str);
+//public:
+	//void myFilterToolTipMessage(MSG* pMsg);
+	//virtual BOOL PreTranslateMessage(MSG* pMsg);
+//protected:
+	//virtual LRESULT WindowProc(UINT message, WPARAM wParam, LPARAM lParam);
+	//virtual INT_PTR OnToolHitTest(CPoint point, TOOLINFO* pTI) const;
 public:
 	virtual BOOL OnInitDialog();
 public:
@@ -62,4 +78,11 @@ public:
 	afx_msg void OnBnClickedCheckRemote();
 	afx_msg void OnBnClickedCheckOffset();
 	afx_msg void OnEnChangeEditRemoteAddress();
+	afx_msg void OnBnClickedCheckRelayToUdpSource();
+	afx_msg void OnBnClickedCheckEnableRelayXmlrpc();
+	afx_msg void OnEnChangeEditOffset();	
+	afx_msg void OnBnClickedButtonSetUdpSourceDestination();
+	afx_msg void OnBnClickedButtonSetXmlrpcIfPort();
+	afx_msg void OnSysCommand(UINT nID, LPARAM lParam);
+	afx_msg void OnBnClickedButtonAbout();
 };

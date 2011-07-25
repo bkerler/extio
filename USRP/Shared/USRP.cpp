@@ -103,6 +103,9 @@ USRP::USRP()
 USRP::~USRP()
 {
 	Stop();
+
+	//if (m_dev)
+	//	Sleep(1000);	// TODO: Does this fix the libusb-1 hang problem? No.
 }
 
 bool USRP::Create(LPCTSTR strHint /*= NULL*//*, double dSampleRate = 0*/)
@@ -110,10 +113,57 @@ bool USRP::Create(LPCTSTR strHint /*= NULL*//*, double dSampleRate = 0*/)
 	if (m_dev)
 		return false;
 
+	CString strFilteredHint(strHint);
+	CStringArray array;
+	uhd::usrp::subdev_spec_t subdev;
+	INT_PTR iRemove = -1;
+	if (Teh::Utils::Tokenise(strHint, array, _T(',')/*, _T(" "), true*/))	// Keep originals intact	// FIXME: Assumes NO use of "
+	{
+		for (INT_PTR i = 0; i < array.GetCount(); ++i)
+		{
+			CString str(array[i]);
+			str.Trim();
+			if (str.IsEmpty())
+				continue;
+
+			int iIndex = str.Find(_T(':'));
+			str.MakeUpper();
+			if (iIndex == -1)
+			{
+				if (str.GetLength() == 1)
+				{
+					if ((str[0] >= _T('A')) && (str[0] <= _T('Z')))
+					{
+						subdev = uhd::usrp::subdev_spec_t(std::string(CStringA(str)) + ":0");
+						iRemove = i;
+						break;
+					}
+				}
+
+				continue;
+			}
+			else if ((iIndex != 1) || (str.GetLength() < 3))
+				continue;
+
+			if ((str[0] < _T('A')) || (str[0] > _T('Z')))
+				continue;
+
+			subdev = uhd::usrp::subdev_spec_t(std::string(CStringA(str)));
+			iRemove = i;
+			break;
+		}
+	}
+
+	if (iRemove > -1)
+	{
+		array.RemoveAt(iRemove);
+		strFilteredHint = Teh::Utils::ToString(array, _T(","));
+	}
+
 	try
 	{
-		CStringA strHintA(strHint);
-		uhd::device_addr_t dev_addr(/*""*/(LPCSTR)strHintA);
+		CStringA strHintA(strFilteredHint);
+		uhd::device_addr_t dev_addr((LPCSTR)strHintA);
 
 		if (!(m_dev = uhd::usrp::single_usrp::make(dev_addr)))
 			return false;
@@ -123,12 +173,27 @@ bool USRP::Create(LPCTSTR strHint /*= NULL*//*, double dSampleRate = 0*/)
 		return false;
 	}
 
+	if (subdev.empty() == false)
+	{
+		try
+		{
+			m_dev->set_rx_subdev_spec(subdev);
+		}
+		catch (...)
+		{
+			AfxTrace(_T("Failed to set sub-device specification: %s\n"), strHint);
+			return false;
+		}
+	}
+
 	size_t nMBs = m_dev->get_num_mboards();
 
 	m_recv_samples_per_packet = m_dev->get_device()->get_max_recv_samps_per_packet();
 
-//	m_strName = CString(CStringA(m_dev->get_mboard_name().c_str()));
+	try
 	{
+		m_strName = CString(CStringA(m_dev->get_mboard_name().c_str()));	// This is the fail-safe
+
 		//uhd::usrp::mboard_iface::sptr mboard = m_dev->get_mboard_iface(0);
 
 		//wax::obj wDev = m_dev->get_device();
@@ -140,6 +205,10 @@ bool USRP::Create(LPCTSTR strHint /*= NULL*//*, double dSampleRate = 0*/)
 		//std::string strSerial = eeprom[wax::obj(std::string("serial"))].as<std::string>();
 		std::string strSerial = eeprom["serial"];
 		m_strName = CString(CStringA(strSerial.c_str()));
+	}
+	catch (...)
+	{
+		AfxTrace(_T("Exception while getting serial number\n"));
 	}
 
 	m_fpga_master_clock_freq = m_dev->get_master_clock_rate();
@@ -241,6 +310,16 @@ std::vector<std::string> USRP::GetAntennas() const
 		}
 	}
 
+/*	if ((array.empty()) ||
+		((array.size() == 1) && (array[0].empty())))
+	{
+		array.push_back("TX/RX");
+		array.push_back("RX2");
+		array.push_back("RXA");
+		array.push_back("RXB");
+		array.push_back("RXAB");
+	}
+*/
 	return array;
 }
 
@@ -316,8 +395,6 @@ double USRP::SetFreq(double dFreq)
 
 	return m_tuneResult.actual_inter_freq + m_tuneResult.actual_dsp_freq;
 }
-
-
 
 bool USRP::Start()
 {

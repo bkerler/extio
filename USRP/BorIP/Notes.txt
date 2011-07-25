@@ -1,0 +1,6 @@
+* Launch new instance when legacy creation fails? (How to detect? Check exception)
+* Manual creation through server GUI (for legacy)
+* Announce
+? Dest addr does not reset to new client addr after being manually set beforehand
+
+- Headerless setting does NOT persist
