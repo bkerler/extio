@@ -1,10 +1,12 @@
 * Stop must stop (cannot fail, i.e. Remote must not deadlock)
-* Freq offset
-* Connection failure, but msgbox is modeless, can click 'Create' again and screw things up
 * Abort sync I/O button
-* WaitCursor for connect (or dialog)
 * Check SetGain against gainRange if (dev) && (min != max != 0)
+* Set button for new relay address/xmlrpc port
+* XMLRPC in different thread so doesn't block if can't connect
 
+- Connection failure, but msgbox is modeless, can click 'Create' again and screw things up
+- Freq offset
+- WaitCursor for connect (or dialog)
 - SHIFT to avoid connect
 - Merge legacy reg settings
 - Optional w/o hint

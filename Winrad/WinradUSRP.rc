@@ -46,6 +46,7 @@ BEGIN
     BEGIN
         BLOCK "080004e4"
         BEGIN
+            VALUE "Comments", "http://spench.net/r/ExtIO_USRP"
             VALUE "CompanyName", "spench.net"
             VALUE "FileDescription", "ExtIO for UHD-driven USRP"
             VALUE "FileVersion", "1.0.0.0"
@@ -107,7 +108,7 @@ END
 // Dialog
 //
 
-IDD_DIALOG_EXTIO DIALOGEX 0, 0, 400, 268
+IDD_DIALOG_EXTIO DIALOGEX 0, 0, 400, 292
 STYLE DS_SETFONT | DS_MODALFRAME | DS_FIXEDSYS | WS_POPUP | WS_VISIBLE | WS_CAPTION | WS_SYSMENU
 CAPTION "USRP"
 FONT 8, "MS Shell Dlg", 400, 0, 0x1
@@ -122,14 +123,13 @@ BEGIN
     LTEXT           "Device hint:",IDC_STATIC,6,24,42,8,0,WS_EX_RIGHT
     LTEXT           "Sample rate:",IDC_STATIC,6,42,42,8,0,WS_EX_RIGHT
     COMBOBOX        IDC_COMBO_SAMPLE_RATE,54,42,78,96,CBS_DROPDOWN | WS_VSCROLL | WS_TABSTOP
-    LTEXT           "Msps",IDC_STATIC,138,42,17,8
+    LTEXT           "Msps",IDC_STATIC,135,46,17,8
     PUSHBUTTON      "Max",IDC_BUTTON_MAX_GAIN,342,120,36,14
     PUSHBUTTON      "Mid",IDC_BUTTON_MID_GAIN,174,144,36,14
     LTEXT           "Log",IDC_STATIC,6,168,384,12,SS_SUNKEN
     LTEXT           "Antenna:",IDC_STATIC,17,60,31,8,0,WS_EX_RIGHT
     COMBOBOX        IDC_COMBO_ANTENNA,54,60,78,54,CBS_DROPDOWNLIST | WS_VSCROLL | WS_TABSTOP
     PUSHBUTTON      "Create",IDC_BUTTON_CREATE_DEVICE,138,24,50,14
-    LTEXT           "balint@spench.net",IDC_STATIC_LINK,6,254,61,8
     LTEXT           "Range:",IDC_STATIC,24,144,24,8,0,WS_EX_RIGHT
     EDITTEXT        IDC_EDIT_GAIN_RANGE,54,144,54,12,ES_AUTOHSCROLL | ES_READONLY
     LTEXT           "Current:",IDC_STATIC,258,144,30,8,0,WS_EX_RIGHT
@@ -141,6 +141,17 @@ BEGIN
     EDITTEXT        IDC_EDIT_REMOTE_ADDRESS,54,6,78,12,ES_AUTOHSCROLL
     EDITTEXT        IDC_EDIT_OFFSET,54,78,78,12,ES_AUTOHSCROLL | ES_NUMBER
     CONTROL         "Offset:",IDC_CHECK_OFFSET,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,14,78,38,10
+    CONTROL         "Relay to UDP Source",IDC_CHECK_RELAY_TO_UDP_SOURCE,
+                    "Button",BS_AUTOCHECKBOX | WS_TABSTOP,12,258,82,10
+    LTEXT           "IP Address:",IDC_STATIC,12,272,38,8
+    EDITTEXT        IDC_EDIT_UDP_SOURCE_DESTINATION,53,270,84,12,ES_AUTOHSCROLL
+    CONTROL         "XML-RPC IF port:",IDC_CHECK_ENABLE_RELAY_XMLRPC,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,174,270,71,10
+    EDITTEXT        IDC_EDIT_XMLRPC_IF_PORT,246,270,60,12,ES_AUTOHSCROLL
+    PUSHBUTTON      "Set",IDC_BUTTON_SET_UDP_SOURCE_DESTINATION,138,270,24,12
+    PUSHBUTTON      "Set",IDC_BUTTON_SET_XMLRPC_IF_PORT,306,270,24,12
+    LTEXT           "Hz",IDC_STATIC,135,81,9,8
+    GROUPBOX        "",IDC_STATIC,6,258,330,30
+    PUSHBUTTON      "About",IDC_BUTTON_ABOUT,342,270,50,14
 END
 
 IDD_DIALOG_WAIT DIALOGEX 0, 0, 214, 52
@@ -151,6 +162,20 @@ BEGIN
     DEFPUSHBUTTON   "OK",IDOK,6,30,50,14,NOT WS_VISIBLE | WS_DISABLED
     PUSHBUTTON      "Cancel",IDCANCEL,156,30,50,14
     LTEXT           "Please wait...",IDC_STATIC_INFO,6,6,198,18,SS_SUNKEN
+END
+
+IDD_ABOUTBOX DIALOGEX 0, 0, 178, 118
+STYLE DS_SETFONT | DS_MODALFRAME | DS_FIXEDSYS | WS_POPUP | WS_CAPTION | WS_SYSMENU
+CAPTION "About BorIP"
+FONT 8, "MS Shell Dlg", 0, 0, 0x1
+BEGIN
+    LTEXT           "ExtIO USRP, Version 1.0",IDC_STATIC,42,12,114,8,SS_NOPREFIX
+    LTEXT           "Copyright (C) Balint Seeber 2011",IDC_STATIC,42,24,114,8
+    DEFPUSHBUTTON   "OK",IDOK,120,96,48,14,WS_GROUP
+    LTEXT           "Uses USRP code from GNU Radio &&\nUHD from Ettus Research.\nAlso uses XmlRpc++.",IDC_STATIC,42,40,114,26
+    PUSHBUTTON      "spench.net",IDC_BUTTON_WWW,120,72,50,14
+    ICON            IDR_MAINFRAME,IDC_STATIC,14,14,20,20
+    LTEXT           "For help, links && source:",IDC_STATIC,40,75,78,8
 END
 
 
@@ -167,7 +192,7 @@ BEGIN
         LEFTMARGIN, 7
         RIGHTMARGIN, 393
         TOPMARGIN, 7
-        BOTTOMMARGIN, 261
+        BOTTOMMARGIN, 285
     END
 
     IDD_DIALOG_WAIT, DIALOG
@@ -177,8 +202,65 @@ BEGIN
         TOPMARGIN, 7
         BOTTOMMARGIN, 45
     END
+
+    IDD_ABOUTBOX, DIALOG
+    BEGIN
+        LEFTMARGIN, 7
+        RIGHTMARGIN, 171
+        TOPMARGIN, 7
+        BOTTOMMARGIN, 111
+    END
 END
 #endif    // APSTUDIO_INVOKED
+
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// Icon
+//
+
+// Icon with lowest ID value placed first to ensure application icon
+// remains consistent on all systems.
+IDR_MAINFRAME           ICON                    "res\\spench.ico"
+
+/////////////////////////////////////////////////////////////////////////////
+//
+// String Table
+//
+
+STRINGTABLE 
+BEGIN
+    IDC_BUTTON_CREATE_DEVICE 
+                            "Create the device based on hint and optional remote server address"
+    IDC_BUTTON_SET_SAMPLE_RATE "Change the sampling rate to the custom amount"
+    IDC_CHECK_REMOTE        "Connect to the BorIP server running on the specified computer"
+    IDC_EDIT_REMOTE_ADDRESS "The network address or name of the computer running a BorIP server"
+    IDC_EDIT_OFFSET         "If 'Offset' is ticked, add this amount to the requested frequency"
+    IDC_CHECK_OFFSET        "Offset the requested frequency (e.g. if you're using a transverter)"
+    IDC_CHECK_RELAY_TO_UDP_SOURCE 
+                            "Relay raw samples via UDP to, say, a UDP Source block in GRC"
+    IDC_EDIT_UDP_SOURCE_DESTINATION 
+                            "IP address of destination where raw samples will be sent via UDP"
+    IDC_CHECK_ENABLE_RELAY_XMLRPC 
+                            "Send IF tuning commands to XML-RPC server running at relay destination"
+    IDC_EDIT_XMLRPC_IF_PORT "Port on relay destination to which XML-RPC IF tuning commands will be sent"
+    IDS_ABOUTBOX            "&About ExtIO USRP..."
+END
+
+STRINGTABLE 
+BEGIN
+    IDC_EDIT_DEVICE_HINT    "Blank: existing remote, or default UHD (-). Single digit: Legacy device. Other: UHD hint."
+    IDC_COMBO_SAMPLE_RATE   "Select a pre-defined sample rate, or enter your own"
+    IDC_COMBO_ANTENNA       "Select receiver's antenna port"
+END
+
+STRINGTABLE 
+BEGIN
+    IDC_BUTTON_SET_XMLRPC_IF_PORT 
+                            "Set port on relay destination to which XML-RPC IF tuning commands will be sent"
+    IDC_BUTTON_SET_UDP_SOURCE_DESTINATION 
+                            "Set IP address to where raw samples will be sent via UDP. Format: IP[:port]"
+END
 
 #endif    // English (Australia) resources
 /////////////////////////////////////////////////////////////////////////////

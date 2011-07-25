@@ -3,6 +3,8 @@
 
 #include "dialogExtIO.h"
 #include "socketClientWaitable.h"
+#include "BorIP.h"
+#include "MemoryUSRP.h"
 
 #define REGISTRY_PROFILE_SECTION	m_strSerial // _T("USRP ExtIO")
 #include <TehBase\TehAfxRegistryProfile.h>
@@ -22,12 +24,25 @@ ExtIO_USRP::ExtIO_USRP()
 	, m_bError(false)
 	, m_strSerial(SETTINGS_SECTION)
 	, m_bForceSampleRateUpdate(false)
+	, m_hDataSocket(INVALID_SOCKET)
+	, m_nMaxPacketSize(0)
+	, m_pXMLRPCClient(NULL)
+	, m_iXMLRPCPort(0)
+	, m_bEnableUDPRelay(FALSE)
+	, m_bEnableXMLRPCIF(FALSE)
+	, m_bRemoteDevice(FALSE)
+	, m_lOffset(0)
+	, m_bUseOffset(FALSE)
 {
 	ZERO_MEMORY(m_lIFLimits);
 
 	m_dSampleRate = 250000.0;
 	m_dGain = 0.45;
 	m_dFreq = 50000000.0;
+
+	ZERO_MEMORY(m_addrDest);
+	m_addrDest.sin_family = AF_INET;
+	m_addrDest.sin_port = htons(BOR_PORT);
 }
 
 ExtIO_USRP::~ExtIO_USRP()
@@ -39,12 +54,43 @@ bool ExtIO_USRP::Init()
 {
 	LOAD_STRING(m_strDevice);
 	LOAD_STRING(m_strAddress);
+	LOAD_INT(m_bRemoteDevice);
+	LOAD_INT(m_bEnableUDPRelay);
+	LOAD_INT(m_bEnableXMLRPCIF);
+	LOAD_INT(m_iXMLRPCPort);
+	LOAD_STRING(m_strUDPRelayAddress);
 
 	if (m_hEvent == NULL)
 	{
 		m_hEvent = CreateEvent(NULL, FALSE, FALSE, NULL);
 		if (m_hEvent == NULL)
 			return false;
+	}
+
+	if (m_bEnableUDPRelay)
+	{
+		if (m_strUDPRelayAddress.IsEmpty())
+			m_bEnableUDPRelay = FALSE;
+		else
+		{
+			if (EnableUDPRelay(m_strUDPRelayAddress) == false)
+			{
+				//m_bEnableUDPRelay = FALSE;
+			}
+		}
+	}
+
+	if (m_bEnableXMLRPCIF)
+	{
+		if (m_iXMLRPCPort <= 0)
+			m_bEnableXMLRPCIF = FALSE;
+		else
+		{
+			if (EnableXMLRPCIF(m_iXMLRPCPort) == false)
+			{
+				//
+			}
+		}
 	}
 
 	if (m_pDialog == NULL)
@@ -71,8 +117,16 @@ void ExtIO_USRP::Destroy()
 
 	SAVE_STRING(m_strDevice);
 	SAVE_STRING(m_strAddress);
+	SAVE_INT(m_bRemoteDevice);
+	SAVE_INT(m_bEnableUDPRelay);
+	SAVE_INT(m_bEnableXMLRPCIF);
+	SAVE_INT(m_iXMLRPCPort);
+	SAVE_STRING(m_strUDPRelayAddress);
 
 	/////////////////////////////////////
+
+	DisableUDPRelay(true);
+	DisableXMLRPCIF(true);
 
 	if (m_pDialog)
 	{
@@ -97,6 +151,23 @@ bool ExtIO_USRP::TryOpen()
 	}
 
 	return true;
+}
+
+void ExtIO_USRP::Playback()
+{
+	if (m_pUSRP)
+	{
+		ASSERT(FALSE);
+		return;
+	}
+
+	m_pDialog->_Log(_T("Entering playback mode..."));
+
+	m_pUSRP = new MemoryUSRP;
+
+	m_strSerial.Empty();
+
+	VERIFY(Start());
 }
 
 bool ExtIO_USRP::Open(LPCTSTR strHint /*= NULL*/, LPCTSTR strAddress /*= NULL*/)
@@ -125,12 +196,16 @@ bool ExtIO_USRP::Open(LPCTSTR strHint /*= NULL*/, LPCTSTR strAddress /*= NULL*/)
 
 	///////////////////////////////////////////////////////////////////////////
 
-	if (m_strAddress.IsEmpty())
+	if (m_bRemoteDevice == FALSE)
 	{
 		int iIndex = -1;
 		CStringArray array;
 		if (Teh::Utils::Tokenise(m_strDevice, array, _T(' ')))
+		{
 			iIndex = _tstoi(array[0]);
+			if ((iIndex == 0) && (array[0] != _T("0")))
+				iIndex = -1;
+		}
 
 		if (iIndex > -1)
 		{
@@ -147,6 +222,12 @@ bool ExtIO_USRP::Open(LPCTSTR strHint /*= NULL*/, LPCTSTR strAddress /*= NULL*/)
 	}
 	else
 	{
+		if (m_strAddress.IsEmpty())
+		{
+			AfxMessageBox(_T("Cannot connect to remote device without specifying address"));
+			return false;
+		}
+
 		m_pDialog->_Log(_T("Creating remote device..."));
 
 		RemoteUSRP* pUSRP = new RemoteUSRP(RUNTIME_CLASS(CsocketClientWaitable));
@@ -156,14 +237,21 @@ bool ExtIO_USRP::Open(LPCTSTR strHint /*= NULL*/, LPCTSTR strAddress /*= NULL*/)
 
 	///////////////////////////////////////////////////////////////////////////
 
+	CString strFilteredDevice(m_strDevice);
+	if ((m_bRemoteDevice == FALSE) && (m_strDevice == _T("-")))
+		strFilteredDevice.Empty();
+
 	if (m_pUSRP->Create(m_strDevice) == false)
 	{
+		m_pDialog->_Log(_T("Failed to create device"));
+
 		if (m_strDevice.IsEmpty() == false)
 		{
 			if (AfxMessageBox(_T("Failed to create USRP: ") + m_strDevice + _T("\n\nTry without device hint?"), MB_ICONWARNING | MB_YESNO | MB_DEFBUTTON2) == IDYES)
 			{
 				if (m_pUSRP->Create() == false)
 				{
+					m_pDialog->_Log(_T("Failed to create default device"));
 					AfxMessageBox(_T("Failed to create default USRP even without device hint"));
 
 					SAFE_DELETE(m_pUSRP);
@@ -188,6 +276,8 @@ bool ExtIO_USRP::Open(LPCTSTR strHint /*= NULL*/, LPCTSTR strAddress /*= NULL*/)
 	/////////////////////////////////////
 
 	m_strSerial = m_pUSRP->GetName();
+	if (m_strSerial.IsEmpty())
+		m_strSerial = _T("(no name)");
 
 	m_pDialog->_Log(_T("Loading settings for: ") + m_strSerial);
 
@@ -195,6 +285,9 @@ bool ExtIO_USRP::Open(LPCTSTR strHint /*= NULL*/, LPCTSTR strAddress /*= NULL*/)
 	LOAD_FLOAT(m_dGain);
 	LOAD_STRING(m_strAntenna);
 	LOAD_INT(m_dSampleRate);
+
+	LOAD_INT(m_bUseOffset);
+	LOAD_INT(m_lOffset);
 
 	/////////////////////////////////////
 
@@ -205,7 +298,10 @@ bool ExtIO_USRP::Open(LPCTSTR strHint /*= NULL*/, LPCTSTR strAddress /*= NULL*/)
 		return false;
 	}
 
-	m_pUSRP->SetDesiredGain(m_dGain);	// So UI gets correct value
+	// So UI gets correct value
+	m_pUSRP->SetDesiredGain(m_dGain);
+	m_pUSRP->SetDesiredAntenna(m_strAntenna);
+	m_pUSRP->SetDesiredFrequency(m_dFreq);
 
 	m_pDialog->_CreateUI();
 
@@ -237,18 +333,24 @@ void ExtIO_USRP::Close()
 
 	m_pDialog->_Log(_T("Saving settings for: ") + m_strSerial);
 
-	ASSERT((m_strSerial.IsEmpty() == false) && (m_strSerial != SETTINGS_SECTION));
+	//ASSERT((m_strSerial.IsEmpty() == false) && (m_strSerial != SETTINGS_SECTION));
 
 	CopyFrom(m_pUSRP);
 
-	SAVE_INT(m_dFreq);
-	SAVE_FLOAT(m_dGain);
-	SAVE_STRING(m_strAntenna);
-	SAVE_INT(m_dSampleRate);
+	if ((m_strSerial.IsEmpty() == false) && (m_strSerial != SETTINGS_SECTION))
+	{
+		SAVE_INT(m_dFreq);
+		SAVE_FLOAT(m_dGain);
+		SAVE_STRING(m_strAntenna);
+		SAVE_INT(m_dSampleRate);
+
+		SAVE_INT(m_bUseOffset);
+		SAVE_INT(m_lOffset);
+	}
 
 	/////////////////////////////////////
 
-	if (m_bError)
+	if ((m_pUSRP) && (m_bError) && (CAN_CAST(m_pUSRP, RemoteUSRP) == false))
 	{
 		if (AfxMessageBox(_T("An error occurred at some point.\n\nThere is a chance that the program will hang when cleaning up\nif your USRP has been disconnected while it was running.\n\nDo you want to skip the clean-up just in case?"), MB_YESNO | MB_ICONWARNING | MB_DEFBUTTON1) == IDYES)
 		{
@@ -282,30 +384,67 @@ bool ExtIO_USRP::SetSampleRate(double dSampleRate)
 
 int ExtIO_USRP::SetLO(ULONG lFreq)
 {
+	if (m_bUseOffset)
+		lFreq += m_lOffset;
+
 	m_dFreq = lFreq;
 
 	if (m_pUSRP == NULL)
 		return 1;	// Higher than possible
 
-	if (m_pUSRP->SetFreq(lFreq) < 0)
-		return 1;
+	double d = m_pUSRP->SetFreq(lFreq);
 
-	m_pDialog->_UpdateUI(CdialogExtIO::UF_TUNE_INFO);
+	m_pDialog->_UpdateUI(CdialogExtIO::UF_TUNE_INFO);	// Update regardless of error
+
+	if (d < 0)
+		return 1;
 
 	return m_pUSRP->WasTuneSuccessful(/*m_pUSRP->GetTuneResult()*/);	// Return 0 if the frequency is within the limits the HW can generate
 }
 
 void ExtIO_USRP::SetTunedFrequency(long lFreq)
 {
+	if (m_bUseOffset)
+		lFreq += m_lOffset;
+
 	m_lTunedFreq = lFreq;
+
+	if (m_pUSRP)
+	{
+		double dOffset = m_pUSRP->GetFreq() - (double)lFreq;
+
+		AfxTrace(_T("Tuning offset = %f\n"), dOffset);
+
+		if (m_pXMLRPCClient)
+		{
+			XmlRpc::XmlRpcValue args, result;
+			args[0] = dOffset;
+
+			if (m_pXMLRPCClient->execute("set_xlate_offset", args, result) == false)
+			{
+				m_pDialog->_Log(_T("Failed to execute XML-RPC command - is the server running?"));
+			}
+		}
+	}
 
 	//PostMessage
 }
 
 void ExtIO_USRP::SetIFLimits(long lLow, long lHigh)
 {
+	if (m_bUseOffset)
+	{
+		lLow += m_lOffset;
+		lHigh += m_lOffset;
+	}
+
 	m_lIFLimits[LOW] = lLow;
 	m_lIFLimits[HIGH] = lHigh;
+
+	//long lCentre = lLow + ((lHigh - lLow) / 2);
+	double dWidth = lHigh - lLow;
+
+	AfxTrace(_T("IF width = %f\n"), dWidth);
 
 	//PostMessage
 }
@@ -342,20 +481,24 @@ int ExtIO_USRP::Start()
 	}
 
 	bool bResult = true;
-
+retry_start:
 	if (m_pUSRP->SetSampleRate(m_dSampleRate) <= 0)
 		bResult = false;
 	if (m_pUSRP->SetGain(m_dGain) == false)
 		bResult = false;
 	if (m_pUSRP->SetAntenna(m_strAntenna) == false)
 		bResult = false;
-	if (m_pUSRP->SetFreq(m_dFreq))	// Set here the frequency of the controlled hardware to LOfreq
+	if (m_pUSRP->SetFreq(m_dFreq) < 0)	// Set here the frequency of the controlled hardware to LOfreq
 		bResult = false;
 
 	bool bError = false;
 	if ((bResult == false) && (m_bError))
 	{
-		int iResult = AfxMessageBox(_T("Failed to set some USRP parameters.\nThis is probably due to your device being disconnected.\nMake sure it is connected before continuing!\n\nAbort:\tStop\nRetry:\tAttempt to re-create device (probably will not work if device link was broken)\nIgnore:\tContinue (expect things to break/hang)"), MB_ABORTRETRYIGNORE | MB_ICONWARNING | MB_DEFBUTTON2);
+		int iResult = IDRETRY;
+
+		if (CAN_CAST(m_pUSRP, RemoteUSRP) == false)
+			iResult = AfxMessageBox(_T("Failed to set some USRP parameters.\nThis is probably due to your device being disconnected.\nMake sure it is connected before continuing!\n\nAbort:\tStop\nRetry:\tAttempt to re-create device (probably will not work if device link was broken)\nIgnore:\tContinue (expect things to break/hang)"), MB_ABORTRETRYIGNORE | MB_ICONWARNING | MB_DEFBUTTON2);
+
 		if (iResult == IDABORT)
 		{
 			Signal(CS_Stop);
@@ -365,7 +508,10 @@ int ExtIO_USRP::Start()
 		{
 			m_pUSRP->Stop();
 
-			iResult = AfxMessageBox(_T("Would you like to clean-up the device?\n\nThis may cause the program to freeze if the device link was previously broken."), MB_ICONQUESTION | MB_YESNOCANCEL | MB_DEFBUTTON2);
+			if (CAN_CAST(m_pUSRP, RemoteUSRP))
+				iResult = IDYES;
+			else
+				iResult = AfxMessageBox(_T("Would you like to clean-up the device?\n\nThis may cause the program to freeze if the device link was previously broken."), MB_ICONQUESTION | MB_YESNOCANCEL | MB_DEFBUTTON2);
 
 			if (iResult == IDYES)
 			{
@@ -387,6 +533,9 @@ int ExtIO_USRP::Start()
 				Signal(CS_Stop);
 				return 0;
 			}
+
+			bResult = true;
+			goto retry_start;
 		}
 		else
 		{
@@ -450,7 +599,8 @@ void ExtIO_USRP::Stop()
 
 		AfxTrace(_T("Waiting for termination of thread 0x%x...\n"), m_dwWorkerID);
 
-		WaitForSingleObject(m_hWorker, INFINITE);
+		if (CAN_CAST(m_pUSRP, MemoryUSRP) == false)	// TODO: Figure out why this deadlocks on shutdown (does it anymore?)
+			WaitForSingleObject(m_hWorker, INFINITE);
 
 		CloseHandle(m_hWorker);
 		m_hWorker = NULL;
@@ -465,8 +615,171 @@ void ExtIO_USRP::Stop()
 	CopyFrom(m_pUSRP);
 }
 
+bool ExtIO_USRP::EnableXMLRPCIF(int iPort /*= 0*/)
+{
+	if (m_pXMLRPCClient == NULL)
+	{
+		if (m_addrDest.sin_addr.S_un.S_addr == 0)
+			return false;
+
+		CStringA strA(inet_ntoa(m_addrDest.sin_addr));
+
+		if (iPort > 0)
+			m_iXMLRPCPort = iPort;
+
+		m_pXMLRPCClient = new XmlRpc::XmlRpcClient(strA, m_iXMLRPCPort);
+	}
+	else
+		return SetXMLRPCIFPort(iPort);
+
+	m_bEnableXMLRPCIF = TRUE;
+
+	return true;
+}
+
+void ExtIO_USRP::DisableXMLRPCIF(bool bKeepSetting /*= false*/)
+{
+	SAFE_DELETE(m_pXMLRPCClient);
+
+	if (bKeepSetting == false)
+		m_bEnableXMLRPCIF = FALSE;
+}
+
+bool ExtIO_USRP::SetXMLRPCIFPort(int iPort)
+{
+	if (iPort <= 0)
+		return false;
+	else if (m_iXMLRPCPort == iPort)
+		return true;
+
+	if (m_pXMLRPCClient)
+	{
+		DisableXMLRPCIF(true);
+		EnableXMLRPCIF(iPort);	// Ignore errors
+	}
+	else
+		m_iXMLRPCPort = iPort;
+
+	return true;
+}
+
+bool ExtIO_USRP::EnableUDPRelay(LPCTSTR strDestination /*= NULL*/)
+{
+	{
+		CSingleLock lock(&m_csRelay, TRUE);
+
+		if (m_hDataSocket == INVALID_SOCKET)
+		{
+			if ((m_hDataSocket = WSASocket(AF_INET, SOCK_DGRAM, 0, NULL, 0, WSA_FLAG_OVERLAPPED)) == INVALID_SOCKET)	// FIXME: Use local var and do while unlocked
+				return false;
+
+			int iLength = sizeof(m_nMaxPacketSize);
+			//if (m_pDataStream->GetSockOpt(SO_MAX_MSG_SIZE, &m_nMaxPacketSize, &iLength) == 0)
+			if (getsockopt(m_hDataSocket, SOL_SOCKET, SO_MAX_MSG_SIZE, (char*)&m_nMaxPacketSize, &iLength) != 0)
+			{
+				AfxTrace(_T("Failed to get maximum packet size\n"));
+				return false;
+			}
+			else
+			{
+				//CString str;
+				//str.Format(_T("Maximum packet size: %lu"), m_nMaxPacketSize);
+				//Log(str);
+			}
+
+			int iBufferSize = 1024 * 1024;
+			if (setsockopt(m_hDataSocket, SOL_SOCKET, SO_SNDBUF, (char*)&iBufferSize, sizeof(iBufferSize)) == 0)
+			{
+				int iOptLen = sizeof(iBufferSize);
+
+				if (getsockopt(m_hDataSocket, SOL_SOCKET, SO_SNDBUF, (char*)&iBufferSize, &iOptLen) == 0)
+				{
+					//CString str;
+					//str.Format(_T("Send socket buffer size: %i"), iBufferSize);
+					//Log(str);
+				}
+				else
+					AfxTrace(_T("Failed to get send socket buffer size\n"));
+			}
+			else
+				AfxTrace(_T("Failed to set send socket buffer size\n"));
+		}
+	}
+
+	if (IS_EMPTY(strDestination) == false)
+	{
+		if (SetUDPRelayDestination(strDestination) == false)
+			return false;
+	}
+
+	m_bEnableUDPRelay = TRUE;
+
+	return true;
+}
+
+bool ExtIO_USRP::SetUDPRelayDestination(const CString& strDestination)
+{
+	if (strDestination.IsEmpty())
+		return false;
+
+	CString strData(strDestination);
+	int iIndex = strData.Find(_T(':'));
+	UINT nPort = BOR_PORT;
+	if (iIndex > -1)
+	{
+		nPort = _tstoi(strData.Mid(iIndex + 1));
+		strData = strData.Left(iIndex);
+	}
+
+	ULONG ulAddress = inet_addr(CStringA(strData));
+	if (ulAddress == -1)
+	{
+		if (m_addrDest.sin_addr.S_un.S_addr == 0)
+			DisableUDPRelay();
+
+		return false;
+	}
+	else
+	{
+		CSingleLock lock(&m_csRelay, TRUE);
+
+		m_addrDest.sin_addr.S_un.S_addr = ulAddress;
+		m_addrDest.sin_port = htons(nPort);
+	}
+
+	m_strUDPRelayAddress = strDestination;
+
+	return true;
+}
+
+void ExtIO_USRP::DisableUDPRelay(bool bKeepSetting /*= false*/)
+{
+	CSingleLock lock(&m_csRelay, TRUE);
+
+	if (m_hDataSocket != INVALID_SOCKET)
+	{
+		closesocket(m_hDataSocket);	// FIXME: Use local var and do while unlocked
+		m_hDataSocket = INVALID_SOCKET;
+	}
+
+	if (bKeepSetting == false)
+		m_bEnableUDPRelay = FALSE;
+}
+
 DWORD ExtIO_USRP::Worker()
 {
+	WSABUF wsabuf;
+	WSAOVERLAPPED wsaoverlapped;
+	HANDLE hDataSent = CreateEvent(NULL, FALSE, FALSE, NULL);
+	ASSERT(hDataSent);
+	if (hDataSent == NULL)
+	{
+		AfxTrace(_T("Failed to create data sent wait handle\n"));
+		return -1;
+	}
+
+	////////////////////////////
+
 	SetThreadPriority(GetCurrentThread(), /*THREAD_PRIORITY_HIGHEST*/THREAD_PRIORITY_TIME_CRITICAL);
 
 	while (true)
@@ -474,7 +787,11 @@ DWORD ExtIO_USRP::Worker()
 		DWORD dw = WaitForSingleObject(m_hEvent, 0);
 
 		if (dw == WAIT_OBJECT_0)
+		{
+			AfxTrace(_T("Worker thread 0x%x received stop event\n"), GetCurrentThreadId());
+
 			break;
+		}
 
 		int iSamplesRead = m_pUSRP->ReadPacket();
 
@@ -488,6 +805,7 @@ DWORD ExtIO_USRP::Worker()
 			AfxTrace(_T("Failed to read packet\n"));
 
 			Signal(CS_Stop);
+			WaitForSingleObject(m_hEvent, INFINITE);	// 'Stop' callback will be called, so wait for it before exiting
 			break;
 		}
 		else if (iSamplesRead != m_pUSRP->GetSamplesPerPacket())
@@ -500,15 +818,92 @@ DWORD ExtIO_USRP::Worker()
 			continue;
 		}
 
+		////////////////////////////
+
 		CSingleLock lock(&m_cs, TRUE);
 
-		if (m_pfnCallback == NULL)
-			continue;
+		if (m_pfnCallback)
+			(m_pfnCallback)(m_pUSRP->GetSamplesPerPacket(), 0, 0, const_cast<short*>(m_pUSRP->GetBuffer()));
 
-		(m_pfnCallback)(m_pUSRP->GetSamplesPerPacket(), 0, 0, const_cast<short*>(m_pUSRP->GetBuffer()));
+		lock.Unlock();
+
+		////////////////////////////
+
+		CSingleLock lockRelay(&m_csRelay, TRUE);
+
+		if ((m_hDataSocket != INVALID_SOCKET) && (m_addrDest.sin_addr.S_un.S_addr != 0))
+		{
+			wsabuf.buf = (char*)m_pUSRP->GetBuffer();
+			wsabuf.len = iSamplesRead * 2 * sizeof(short);
+
+			ZERO_MEMORY(wsaoverlapped);
+			wsaoverlapped.hEvent = hDataSent;
+
+			DWORD dwSocketBytesSent = 0;
+			int iResult = WSASendTo(m_hDataSocket, &wsabuf, 1, &dwSocketBytesSent, 0, (sockaddr*)&m_addrDest, sizeof(m_addrDest), &wsaoverlapped, NULL);	// FIXME: Unlock & use local var
+			if (iResult == SOCKET_ERROR)
+			{
+				DWORD dw = WSAGetLastError();
+
+				if (dw != WSA_IO_PENDING/*WSAEWOULDBLOCK*/)
+				{
+					{
+						//CSingleLock lock(&m_cs, TRUE);
+						//++m_nSocketErrors;
+					}
+
+					continue;
+				}
+
+				dw = WaitForSingleObject(hDataSent, INFINITE);
+				if (dw != WAIT_OBJECT_0)
+				{
+					AfxTrace(_T("Unexpected result while waiting for send: %lu\n"), dw);
+				}
+
+				DWORD dwSocketFlags = 0;
+				dwSocketBytesSent = 0;
+				if (WSAGetOverlappedResult(m_hDataSocket, &wsaoverlapped, &dwSocketBytesSent, TRUE, &dwSocketFlags) == FALSE)
+				{
+					{
+						//CSingleLock lock(&m_cs, TRUE);
+						//++m_nBlockingErrors;
+					}
+
+					continue;
+				}
+
+				ASSERT(dwSocketFlags == 0);
+
+				{
+					//CSingleLock lock(&m_cs, TRUE);
+					//++m_nPacketsSent;
+					//++m_nBlockingSends;
+				}
+			}
+			else if (iResult != 0)
+			{
+				{
+					//CSingleLock lock(&m_cs, TRUE);
+					//++m_nShortSends;
+				}
+			}
+			else
+			{
+				{
+					//CSingleLock lock(&m_cs, TRUE);
+					//++m_nPacketsSent;
+				}
+			}
+		}
+		
+		lockRelay.Unlock();
 	}
 
-	AfxTrace(_T("Worker thread exiting\n"));
+	AfxTrace(_T("Worker thread 0x%x exiting\n"), GetCurrentThreadId());
+
+	if (hDataSent)
+		CloseHandle(hDataSent);
 
 	return 0;
 }

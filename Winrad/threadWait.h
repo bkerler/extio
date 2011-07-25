@@ -21,8 +21,9 @@ private:
 	HWND m_hWnd;
 	CString m_strMessage;
 	CdialogWait* m_pDialog;
+	HANDLE m_hCreatedEvent;
 public:
-	void _Close();
+	void _Close(bool bResetEvent = true);
 	//inline HANDLE _GetEvent() const
 	//{ return m_hEvent; }
 protected:

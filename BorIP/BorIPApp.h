@@ -11,6 +11,7 @@
 #include "resource.h"		// main symbols
 
 #include "Server.h"
+#include "CommandLineInfo.h"
 
 // CappMain:
 // See BorIP.cpp for the implementation of this class
@@ -27,6 +28,7 @@ public:
 	DECLARE_MESSAGE_MAP()
 public:
 	Server m_server;
+	CommandLineInfo m_cli;
 };
 
 extern CappMain theApp;

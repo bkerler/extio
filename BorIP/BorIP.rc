@@ -70,22 +70,28 @@ END
 
 // Icon with lowest ID value placed first to ensure application icon
 // remains consistent on all systems.
-IDR_MAINFRAME           ICON                    "res\\BorIP.ico"
+IDR_MAINFRAME           ICON                    "res\\spench.ico"
+IDR_OLD_MAINFRAME       ICON                    "res\\BorIP.ico"
 
 /////////////////////////////////////////////////////////////////////////////
 //
 // Dialog
 //
 
-IDD_ABOUTBOX DIALOGEX 0, 0, 170, 62
+IDD_ABOUTBOX DIALOGEX 0, 0, 190, 148
 STYLE DS_SETFONT | DS_MODALFRAME | DS_FIXEDSYS | WS_POPUP | WS_CAPTION | WS_SYSMENU
 CAPTION "About BorIP"
 FONT 8, "MS Shell Dlg", 0, 0, 0x1
 BEGIN
-    ICON            IDR_MAINFRAME,IDC_STATIC,14,14,21,20
+    ICON            IDR_MAINFRAME,IDC_STATIC,14,14,20,20
     LTEXT           "BorIP, Version 1.0",IDC_STATIC,42,14,114,8,SS_NOPREFIX
-    LTEXT           "Copyright (C) 2011",IDC_STATIC,42,26,114,8
-    DEFPUSHBUTTON   "OK",IDOK,113,41,50,14,WS_GROUP
+    LTEXT           "Copyright (C) Balint Seeber 2011",IDC_STATIC,42,26,114,8
+    DEFPUSHBUTTON   "OK",IDOK,132,84,50,14,WS_GROUP
+    LTEXT           "Uses USRP code from GNU Radio &&\nUHD from Ettus Research.",IDC_STATIC,42,42,114,18
+    CONTROL         "<a href=""http://spench.net/r/BorIP"">spench.net</a>",IDC_SYSLINK_WWW,
+                    "SysLink",WS_TABSTOP,124,66,42,12
+    LTEXT           "For help, links && source:",IDC_STATIC,42,66,78,8
+    LTEXT           "Command line arguments (/ or -):\n\nport <#>\tListen on a different port than 28888\ndevice [hint]\tImmediately connect to device\n\t\t(optional device hint, default if none)",IDC_STATIC,12,102,174,42
 END
 
 IDD_BORIP_DIALOG DIALOGEX 0, 0, 320, 238
@@ -95,10 +101,12 @@ CAPTION "BorIP"
 FONT 8, "MS Shell Dlg", 0, 0, 0x1
 BEGIN
     PUSHBUTTON      "E&xit",IDOK,264,216,50,14
-    PUSHBUTTON      "Cancel",IDCANCEL,228,216,31,14,NOT WS_VISIBLE
+    PUSHBUTTON      "Cancel",IDCANCEL,192,216,31,14,NOT WS_VISIBLE
     LISTBOX         IDC_LIST_LOG,6,120,306,88,LBS_USETABSTOPS | LBS_NOINTEGRALHEIGHT | WS_VSCROLL | WS_TABSTOP
     EDITTEXT        IDC_EDIT_INFO,6,6,306,108,ES_MULTILINE | ES_AUTOHSCROLL | ES_READONLY
     PUSHBUTTON      "Release",IDC_BUTTON_RELEASE_DEVICE,6,216,50,14,WS_DISABLED
+    PUSHBUTTON      "About",IDC_BUTTON_ABOUT,228,216,30,14
+    CONTROL         "Autorun",IDC_CHECK_AUTORUN,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,66,218,42,10
 END
 
 
@@ -124,11 +132,14 @@ BEGIN
     BEGIN
         BLOCK "080004e4"
         BEGIN
-            VALUE "FileVersion", "1.0.0.1"
+            VALUE "Comments", "http://spench.net/r/BorIP"
+            VALUE "CompanyName", "spench.net"
+            VALUE "FileDescription", "BorIP server for network streaming baseband data from, and remote control of, your USRP"
+            VALUE "FileVersion", "1.0.0.0"
             VALUE "InternalName", "BorIP.exe"
             VALUE "LegalCopyright", "(c) Balint Seeber 2011.  All rights reserved."
             VALUE "OriginalFilename", "BorIP.exe"
-            VALUE "ProductVersion", "1.0.0.1"
+            VALUE "ProductVersion", "1.0.0.0"
         END
     END
     BLOCK "VarFileInfo"
@@ -149,9 +160,9 @@ BEGIN
     IDD_ABOUTBOX, DIALOG
     BEGIN
         LEFTMARGIN, 7
-        RIGHTMARGIN, 163
+        RIGHTMARGIN, 183
         TOPMARGIN, 7
-        BOTTOMMARGIN, 55
+        BOTTOMMARGIN, 141
     END
 
     IDD_BORIP_DIALOG, DIALOG
@@ -174,6 +185,14 @@ STRINGTABLE
 BEGIN
     IDS_ABOUTBOX            "&About BorIP..."
     IDP_SOCKETS_INIT_FAILED "Windows sockets initialization failed."
+END
+
+STRINGTABLE 
+BEGIN
+    IDC_BUTTON_RELEASE_DEVICE 
+                            "Release the currently connected device (useful for when you wish to disconnect it)"
+    IDC_BUTTON_ABOUT        "About the application and a link to its homepage (contains help and updates)"
+    IDC_CHECK_AUTORUN       "Automatically start BorIP when you log in"
 END
 
 #endif    // English (Australia) resources

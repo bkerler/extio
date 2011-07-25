@@ -8,6 +8,8 @@
 
 #include "USRP.h"
 
+#define AUTORUN_REGISTRY_KEY	_T("BorIP")
+
 #ifdef _DEBUG
 #define new DEBUG_NEW
 #endif
@@ -25,6 +27,8 @@ protected:
 // Implementation
 protected:
 	DECLARE_MESSAGE_MAP()
+public:
+	afx_msg void OnNMClickSyslinkWww(NMHDR *pNMHDR, LRESULT *pResult);
 };
 
 CAboutDlg::CAboutDlg() : CDialog(CAboutDlg::IDD)
@@ -37,6 +41,7 @@ void CAboutDlg::DoDataExchange(CDataExchange* pDX)
 }
 
 BEGIN_MESSAGE_MAP(CAboutDlg, CDialog)
+	ON_NOTIFY(NM_CLICK, IDC_SYSLINK_WWW, &CAboutDlg::OnNMClickSyslinkWww)
 END_MESSAGE_MAP()
 
 // CdialogMain dialog
@@ -63,6 +68,9 @@ BEGIN_MESSAGE_MAP(CdialogMain, CDialog)
 	ON_WM_DESTROY()
 	ON_WM_TIMER()
 	ON_BN_CLICKED(IDC_BUTTON_RELEASE_DEVICE, &CdialogMain::OnBnClickedButtonReleaseDevice)
+	ON_BN_CLICKED(IDC_BUTTON_ABOUT, &CdialogMain::OnBnClickedButtonAbout)
+	ON_NOTIFY_EX_RANGE(TTN_NEEDTEXT, 0, 0xFFFF, OnToolTipNotify)
+	ON_BN_CLICKED(IDC_CHECK_AUTORUN, &CdialogMain::OnBnClickedCheckAutorun)
 END_MESSAGE_MAP()
 
 // CdialogMain message handlers
@@ -70,6 +78,8 @@ END_MESSAGE_MAP()
 BOOL CdialogMain::OnInitDialog()
 {
 	CDialog::OnInitDialog();
+
+	EnableToolTips();
 
 	// Add "About..." menu item to system menu.
 
@@ -86,8 +96,8 @@ BOOL CdialogMain::OnInitDialog()
 		ASSERT(bNameValid);
 		if (!strAboutMenu.IsEmpty())
 		{
-			pSysMenu->AppendMenu(MF_SEPARATOR);
-			pSysMenu->AppendMenu(MF_STRING, IDM_ABOUTBOX, strAboutMenu);
+			pSysMenu->InsertMenu(0, MF_BYPOSITION | MF_SEPARATOR);
+			pSysMenu->InsertMenu(0, MF_BYPOSITION | MF_STRING, IDM_ABOUTBOX, strAboutMenu);
 		}
 	}
 
@@ -97,6 +107,17 @@ BOOL CdialogMain::OnInitDialog()
 	SetIcon(m_hIcon, FALSE);		// Set small icon
 
 	_UpdateUI();
+
+	CRegKey keyAutoRun;
+	if (keyAutoRun.Open(HKEY_CURRENT_USER, _T("Software\\Microsoft\\Windows\\CurrentVersion\\Run"), KEY_QUERY_VALUE) == ERROR_SUCCESS)
+	{
+		CString str;
+		ULONG ul = 1024;
+		LONG l = keyAutoRun.QueryStringValue(AUTORUN_REGISTRY_KEY, str.GetBuffer(ul), &ul);
+		str.ReleaseBuffer();
+		if ((l == ERROR_SUCCESS) && (str.IsEmpty() == false))
+			CheckDlgButton(IDC_CHECK_AUTORUN, BST_CHECKED);
+	}
 
 	return TRUE;  // return TRUE  unless you set the focus to a control
 }
@@ -148,6 +169,36 @@ void CdialogMain::OnPaint()
 HCURSOR CdialogMain::OnQueryDragIcon()
 {
 	return static_cast<HCURSOR>(m_hIcon);
+}
+
+BOOL CdialogMain::OnToolTipNotify(UINT id, NMHDR *pNMHDR, LRESULT *pResult)
+{
+	ASSERT(pNMHDR->code == TTN_NEEDTEXT);
+
+	TOOLTIPTEXT* pTTT = (TOOLTIPTEXT*)pNMHDR;
+	UINT_PTR nID = pNMHDR->idFrom;
+
+	if (pTTT->uFlags & TTF_IDISHWND)
+		nID = ::GetDlgCtrlID((HWND)nID);	// idFrom is actually the HWND of the tool
+
+	CString strTipText;
+
+	if (nID != 0) // will be zero on a separator
+	{
+		if (strTipText.LoadString(nID) == FALSE)
+			return FALSE;
+		if (strTipText.GetLength() > _countof(pTTT->szText))
+			strTipText = strTipText.Left(_countof(pTTT->szText) - 1);
+		//strTipText.Format(_T("Control ID = %d"), nID);
+	}
+
+	_tcscpy_s(pTTT->szText, _countof(pTTT->szText), strTipText);
+
+//	pTTT->uFlags &= ~TTF_CENTERTIP;
+
+	*pResult = 0;
+
+	return TRUE;
 }
 
 void CdialogMain::OnDestroy()
@@ -269,4 +320,51 @@ void CdialogMain::_Log(const CString& str)
 void CdialogMain::OnBnClickedButtonReleaseDevice()
 {
 	m_pServer->CloseDevice();
+}
+
+void CAboutDlg::OnNMClickSyslinkWww(NMHDR *pNMHDR, LRESULT *pResult)
+{
+	ShellExecute(NULL, _T("open"), _T("http://spench.net/r/BorIP"), NULL, NULL, SW_SHOW);
+
+	*pResult = 0;
+}
+
+void CdialogMain::OnBnClickedButtonAbout()
+{
+	CAboutDlg dlgAbout;
+	dlgAbout.DoModal();
+}
+
+void CdialogMain::OnBnClickedCheckAutorun()
+{
+	CRegKey keyAutoRun;
+	if (keyAutoRun.Open(HKEY_CURRENT_USER, _T("Software\\Microsoft\\Windows\\CurrentVersion\\Run"), STANDARD_RIGHTS_WRITE | KEY_SET_VALUE) != ERROR_SUCCESS)
+	{
+		AfxMessageBox(_T("Could not open AutoRun registry key"), MB_ICONERROR);
+		return;
+	}
+
+	if (IsDlgButtonChecked(IDC_CHECK_AUTORUN))
+	{
+		CString str;
+
+		DWORD dw = GetModuleFileName(NULL, str.GetBuffer(MAX_PATH), MAX_PATH);
+		str.ReleaseBuffer();
+		if (dw == 0)
+		{
+			AfxMessageBox(_T("Failed to get process path"), MB_ICONERROR);
+			return;
+		}
+
+		str = _T("\"") + str + _T("\" /autorun");
+
+		if (keyAutoRun.SetStringValue(AUTORUN_REGISTRY_KEY, str) != ERROR_SUCCESS)
+			AfxMessageBox(_T("Could not open AutoRun registry key"), MB_ICONERROR);
+	}
+	else
+	{
+		LONG l = keyAutoRun.DeleteValue(AUTORUN_REGISTRY_KEY);
+		if ((l != ERROR_SUCCESS) && (l != ERROR_FILE_NOT_FOUND))
+			AfxMessageBox(_T("Failed to delete AutoRun key"), MB_ICONERROR);
+	}
 }

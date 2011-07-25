@@ -79,6 +79,8 @@ public:
 	virtual inline CString GetExtraInfo() const=0;
 public:
 	virtual inline void SetDesiredGain(double dGain)=0;
+	virtual inline void SetDesiredAntenna(LPCTSTR strAntenna)=0;
+	virtual inline void SetDesiredFrequency(double dFreq)=0;
 };
 
 class USRPSkeleton : public IUSRP, public USRPConfiguration
@@ -159,6 +161,10 @@ public:
 public:
 	virtual inline void SetDesiredGain(double dGain)
 	{ m_dGain = dGain; }
+	virtual inline void SetDesiredAntenna(LPCTSTR strAntenna)
+	{ m_strAntenna = strAntenna; }
+	virtual inline void SetDesiredFrequency(double dFreq)
+	{ m_dFreq = dFreq; }
 public:
 	inline double GetSampleRate() const
 	{ return USRPConfiguration::GetSampleRate(); }
@@ -298,7 +304,7 @@ public:
 	HANDLE m_hDataEvent;
 	HANDLE m_hQuitEvent;
 	HANDLE m_hPacketEvent;
-	HANDLE m_hStopEvent;
+	HANDLE m_hStopEvent, m_bAbortEvent;
 	SOCKET m_hDataSocket;
 	LPBYTE m_pNetworkBuffer;
 	UINT m_nItemSize;	// Payload size
@@ -312,11 +318,13 @@ public:
 	UINT m_nNetworkOverrun;
 	UINT m_nBufferOverrun;
 	UINT m_nLastSkip;
+	HANDLE m_hAbortPump;
 public:
 	DWORD ReceiveThread();
 public:
 	bool Connect(LPCTSTR strAddress, LPCTSTR strHint = NULL);
-	void Close();
+	void Close(bool bAbort = false);
+	void Stop(bool bAbort);
 	void Destroy();
 	bool WaitForResponse(LPCTSTR strCommand = NULL, bool bMustBeSame = true, bool bAbortIfWaiting = true);
 	bool SendAndWaitForResponse(const CString& strCommand, LPCTSTR strData = NULL);

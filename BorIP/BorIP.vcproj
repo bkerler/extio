@@ -279,6 +279,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\CommandLineInfo.cpp"
+				>
+			</File>
+			<File
 				RelativePath=".\dialogMain.cpp"
 				>
 			</File>
@@ -345,6 +349,10 @@
 				>
 			</File>
 			<File
+				RelativePath=".\CommandLineInfo.h"
+				>
+			</File>
+			<File
 				RelativePath=".\dialogMain.h"
 				>
 			</File>
@@ -394,9 +402,13 @@
 				RelativePath=".\res\BorIP.rc2"
 				>
 			</File>
+			<File
+				RelativePath=".\res\spench.ico"
+				>
+			</File>
 		</Filter>
 		<File
-			RelativePath=".\ReadMe.txt"
+			RelativePath=".\Notes.txt"
 			>
 		</File>
 	</Files>

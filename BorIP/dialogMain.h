@@ -40,4 +40,7 @@ public:
 	afx_msg void OnDestroy();
 	afx_msg void OnTimer(UINT_PTR nIDEvent);
 	afx_msg void OnBnClickedButtonReleaseDevice();
+	afx_msg void OnBnClickedButtonAbout();
+	afx_msg void OnBnClickedCheckAutorun();
+	BOOL OnToolTipNotify(UINT id, NMHDR *pNMHDR, LRESULT *pResult);
 };

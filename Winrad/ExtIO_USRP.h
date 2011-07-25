@@ -51,11 +51,25 @@ private:
 	//long m_lSampleRate;
 	bool m_bError;
 	bool m_bForceSampleRateUpdate;
+	BOOL m_bRemoteDevice;
+private:
+	SOCKET m_hDataSocket;
+	UINT m_nMaxPacketSize;
+	SOCKADDR_IN m_addrDest;
+	CCriticalSection m_csRelay;
+	XmlRpc::XmlRpcClient* m_pXMLRPCClient;
+	int m_iXMLRPCPort;
+	BOOL m_bEnableUDPRelay;
+	BOOL m_bEnableXMLRPCIF;
+	CString m_strUDPRelayAddress;
+	long m_lOffset;
+	BOOL m_bUseOffset;
 public:
 	bool Init();
 	void Destroy();
 	bool TryOpen();
 	bool Open(LPCTSTR strHint = NULL, LPCTSTR strAddress = NULL);
+	void Playback();
 	void Close();
 	void SetCallback(FnCallback pfnCallback);
 	DWORD Worker();
@@ -68,6 +82,13 @@ public:
 	void Abort();
 	void Signal(CallbackStatus status);
 	bool SetSampleRate(double dSampleRate);
+public:
+	bool EnableUDPRelay(LPCTSTR strDestination = NULL);
+	void DisableUDPRelay(bool bKeepSetting = false);
+	bool SetUDPRelayDestination(const CString& strDestination);
+	bool EnableXMLRPCIF(int iPort = 0);
+	void DisableXMLRPCIF(bool bKeepSetting = false);
+	bool SetXMLRPCIFPort(int iPort);
 public:
 	inline CdialogExtIO* GetDialog()
 	{ return m_pDialog; }
@@ -87,16 +108,43 @@ public:
 	//{ return m_strAntenna; }
 	inline CString GetRemoteAddress() const
 	{ return m_strAddress; }
+	inline bool IsUDPRelayEnabled() const
+	{ return (m_bEnableUDPRelay && (m_addrDest.sin_addr.S_un.S_addr != 0)); }
+	inline bool IsXMLRPCIFEnabled() const
+	{ return (m_bEnableXMLRPCIF && (m_addrDest.sin_addr.S_un.S_addr != 0) && (m_iXMLRPCPort > 0)); }
+	inline const CString& GetUDPRelayAddress() const
+	{ return m_strUDPRelayAddress; }
+	inline int GetXMLRPCIFPort() const
+	{ return m_iXMLRPCPort; }
+	inline bool IsOffset() const
+	{ return I2B(m_bUseOffset); }
+	inline void UseOffset(bool bUse = true)
+	{ m_bUseOffset = B2I(bUse); }
+	inline long GetOffset() const
+	{ return m_lOffset; }
+	inline void SetOffset(long lOffset)
+	{ m_lOffset = lOffset; }
 public:
 	inline void SetDeviceHint(LPCTSTR str)
 	{ m_strDevice = str; }
 	inline void SetRemoteAddress(LPCTSTR str)
-	{ m_strAddress = str; }
+	{ m_strAddress = str; UseRemoveDevice(!IS_EMPTY(str)); }
+	inline void UseRemoveDevice(bool bUse = true)
+	{ m_bRemoteDevice = B2I(bUse); }
+	inline bool IsUsingRemoteDevice() const
+	{ return (m_bRemoteDevice && (!m_strAddress.IsEmpty())); }
 public:
-	inline double GetSampleRate() const
+	inline double _GetSampleRate() const
 	{
 		if (!m_pUSRP) return __super::GetSampleRate();
 		return m_pUSRP->GetSampleRate();
+	}
+	inline double GetSampleRate() const
+	{
+		double d = _GetSampleRate();
+		if (d <= 0)
+			d = (m_pUSRP ? m_pUSRP->GetDesiredSampleRate() : 1);
+		return d;
 	}
 	inline double GetFreq() const
 	{

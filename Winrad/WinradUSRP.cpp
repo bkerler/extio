@@ -6,6 +6,7 @@
 
 #include "ExtIO_USRP.h"
 #include "dialogExtIO.h"
+#include "MemoryUSRP.h"
 
 typedef std::complex<float> complex;
 
@@ -45,23 +46,159 @@ END_MESSAGE_MAP()
 
 // CWinradUSRPApp construction
 
+//static AFX_MODULE_STATE* _pStatic;
+//static WNDPROC _pWndProc;
+/*
+LRESULT CALLBACK
+myAfxWndProc(HWND hWnd, UINT nMsg, WPARAM wParam, LPARAM lParam)
+{
+	// special message which identifies the window as using AfxWndProc
+	if (nMsg == WM_QUERYAFXWNDPROC)
+		return 1;
+
+	// all other messages route through message map
+	CWnd* pWnd = CWnd::FromHandlePermanent(hWnd);
+	ASSERT(pWnd != NULL);					
+	ASSERT(pWnd==NULL || pWnd->m_hWnd == hWnd);
+	if (pWnd == NULL || pWnd->m_hWnd != hWnd)
+		return ::DefWindowProc(hWnd, nMsg, wParam, lParam);
+	return AfxCallWndProc(pWnd, hWnd, nMsg, wParam, lParam);
+}
+*//*
+bool operator < (const MSG& m1, const MSG& m2)
+{
+	if (m1.hwnd < m2.hwnd)
+		return true;
+	else if (m1.hwnd > m2.hwnd)
+		return false;
+	// Same hwnd
+	if (m1.message < m2.message)
+		return true;
+	else if (m1.message > m2.message)
+		return false;
+	// Same message
+	if (m1.wParam < m2.wParam)
+		return true;
+	else if (m1.wParam > m2.wParam)
+		return false;
+	// Same wParam
+	if (m1.lParam < m2.lParam)
+		return true;
+	else if (m1.lParam > m2.lParam)
+		return false;
+	// Same lParam
+	return false;
+}
+*/
+LRESULT CALLBACK _AfxWndProcDllStatic(HWND hWnd, UINT nMsg, WPARAM wParam, LPARAM lParam)
+{
+	PTMRC* pRC = _ptmrc.GetData();
+
+/*	if (pRC->RefGetCount() > 0)
+	{
+		AfxTrace(_T("Thread %04x already inside %i [hWnd=%08x, nMsg=%04x]\n"), GetCurrentThreadId(), _bInside.GetData()->i, hWnd, nMsg);
+		return ::DefWindowProc(hWnd, nMsg, wParam, lParam);
+	}
+*/
+	Teh::ScopeRefDec<PTMRC> _rc(pRC);
+
+	//AFX_MANAGE_STATE(&afxModuleState);
+	//AFX_MANAGE_STATE(AfxGetStaticModuleState()/*_pStatic*/);
+	AFX_MAINTAIN_STATE2* _ctlState = NULL;
+	AFX_MODULE_STATE* pStaticState = AfxGetStaticModuleState();
+	//ASSERT(pStaticState == _pStatic);
+	if (pRC->RefGetCount() == 1)
+	{
+		//AfxTrace(_T("{MAINTAIN STATE}\n"));
+//		ASSERT(_bInside.GetData()->pre.empty());
+		_AfxInitManaged();
+		_ctlState = new AFX_MAINTAIN_STATE2(pStaticState/*_pStatic*/);
+	}
+
+	AFX_MODULE_STATE* pState = AfxGetModuleState();
+//	ASSERT(pState == pStaticState);	// Not true when getting here via Edit callback
+//	pState->m_pfnAfxWndProc = _pWndProc;	// This approach doesn't appear to work (plus, for _AFXDLL it's a static global so not thread-safe)
+
+	MSG msg;
+	msg.hwnd = hWnd;
+	msg.message = nMsg;
+	msg.wParam = wParam;
+	msg.lParam = lParam;
+
+/*	if (_bInside.GetData()->pre.find(msg) != _bInside.GetData()->pre.end())
+	{
+		AfxTrace(_T("[%08lu] SKIP Pre-translate: thread %04x hWnd=%08x, nMsg=%04x\n"), _bInside.GetData()->n, GetCurrentThreadId(), hWnd, nMsg);
+		goto skip_pre;
+	}
+*/
+	if (pRC->RefGetCount() == 1)
+	{
+		//if (hWnd)	// Could be thread message
+		{
+//			_bInside.GetData()->n++;
+
+//			_bInside.GetData()->pre.insert(msg);
+
+			MSG msg2 = msg;
+			msg2.pt = CPoint(::GetMessagePos());
+			msg2.time = ::GetMessageTime();
+
+			//AfxTrace(_T("<"));
+//			AfxTrace(_T("[%08lu] Pre-translate: thread %04x hWnd=%08x, nMsg=%04x lParam=%08x wParam=%08x\n"), _bInside.GetData()->n, GetCurrentThreadId(), hWnd, nMsg, wParam, lParam);
+			BOOL b = FALSE;
+			b = AfxPreTranslateMessage(&msg2);
+			//AfxTrace(_T(">\n"));
+
+//			_bInside.GetData()->pre.erase(msg);
+
+			if (b)
+			{
+//				pState->m_pfnAfxWndProc = _AfxWndProcDllStatic;
+//				_bInside.GetData()->i--;
+				//if (_ctlState)
+				//	AfxTrace(_T("{MAINTAIN %05i}\n"), _bInside.GetData()->i);
+				SAFE_DELETE(_ctlState);
+				return 0;
+			}
+		}
+	}
+//skip_pre:
+	//pState->m_pfnAfxWndProc = _pWndProc;
+#undef AfxWndProc
+	LRESULT l = AfxWndProc/*(_pWndProc)*//*myAfxWndProc*/(hWnd, nMsg, wParam, lParam);
+
+//	pState->m_pfnAfxWndProc = _AfxWndProcDllStatic;
+
+	//if (_ctlState)
+	//	AfxTrace(_T("{MAINTAIN %05i}\n"), _bInside.GetData()->i);
+	SAFE_DELETE(_ctlState);
+//	pRC->RefDecCount();
+	return l;
+}
+
 CWinradUSRPApp::CWinradUSRPApp()
 	: m_pUSRP(NULL)
 	//, m_pDialog(NULL)
 	//, m_iLO(50000000)
+	, m_bPlayback(false)
 {
+	//_pStatic = AfxGetStaticModuleState();
+
+	AFX_MODULE_STATE* pState = AfxGetModuleState();
+	//_pWndProc = pState->m_pfnAfxWndProc;
+	pState->m_pfnAfxWndProc = _AfxWndProcDllStatic;
 }
 
 CWinradUSRPApp::~CWinradUSRPApp()
 {
-	ASSERT(m_pUSRP == NULL);
+	//ASSERT(m_pUSRP == NULL);
 
-	_Close();
+	_Close(true);
 }
 
 bool CWinradUSRPApp::_Open()
 {
-	_Close();
+	_Close(true);
 
 	m_pUSRP = new ExtIO_USRP();
 
@@ -71,7 +208,7 @@ bool CWinradUSRPApp::_Open()
 	return true;
 }
 
-void CWinradUSRPApp::_Close()
+void CWinradUSRPApp::_Close(bool bAll /*= false*/)
 {
 	if (m_pUSRP)
 	{
@@ -79,6 +216,25 @@ void CWinradUSRPApp::_Close()
 	}
 
 	SAFE_DELETE(m_pUSRP);
+
+	m_bPlayback = false;
+
+	if (bAll == false)
+	{
+		AfxTrace(_T("Creating playback interface...\n"));
+
+		m_pUSRP = new ExtIO_USRP();
+
+		if (m_pUSRP->Init() == false)
+		{
+			m_pUSRP->Destroy();
+			SAFE_DELETE(m_pUSRP);
+		}
+
+		m_pUSRP->Playback();
+
+		m_bPlayback = true;
+	}
 }
 
 // The one and only CWinradUSRPApp object
@@ -134,14 +290,16 @@ BOOL CWinradUSRPApp::InitInstance()
 
 	AfxTrace(_T("Maximum UDP size: %hu\n"), wsa.iMaxUdpDg);
 
+	m_memPlayback.AllocateMemory(512 * 2 * sizeof(short));
+
 	return TRUE;
 }
 
 int CWinradUSRPApp::ExitInstance()
 {
-	ASSERT(m_pUSRP == NULL);
+	//ASSERT(m_pUSRP == NULL);
 
-	_Close();
+	_Close(true);
 
 	return CWinApp::ExitInstance();
 }
@@ -166,6 +324,9 @@ __declspec(dllexport) bool __stdcall InitHW(char *name, char *model, int& type)
 	{
 		AFX_MANAGE_STATE(AfxGetStaticModuleState());
 
+		if (theApp._IsPlayingBack())
+			theApp._Close(true);
+
 		if (theApp._GetUSRP() == NULL)
 		{
 			if (theApp._Open() == false)
@@ -188,6 +349,12 @@ __declspec(dllexport) bool __stdcall InitHW(char *name, char *model, int& type)
 extern "C"
 __declspec(dllexport) bool __stdcall OpenHW(void)
 {
+	if (theApp._GetUSRP() == NULL)
+	{
+		ASSERT(FALSE);
+		return false;
+	}
+
 	AfxTrace(_T("Opening...\n"));
 
 	{
@@ -456,7 +623,43 @@ __declspec(dllexport) void __stdcall HideGUI(void)
 }
 
 extern "C"
-__declspec(dllexport) void __stdcall RawDataReady(long samprate, int *Ldata, int *Rdata, int numsamples)
+__declspec(dllexport) void __stdcall RawDataReady(long samprate, int *Ldata, int *Rdata, int numsamples)	// Pre-process raw data
 {
-	// Pre-process raw data
+	ExtIO_USRP* pUSRP = theApp._GetUSRP();
+
+	if ((pUSRP == NULL) || (theApp._IsPlayingBack() == false) || (pUSRP->IsUDPRelayEnabled() == false))
+	{
+		return;
+	}
+
+	UINT nSize = 2 * sizeof(short) * numsamples;
+
+	if ((int)nSize <= 0)
+		return;
+
+	Teh::MemoryContainer& mem = theApp._GetPlaybackMemory();
+
+	if (mem.GetMemoryLength() != nSize)
+	{
+		if (mem.GetMemoryPointer() == NULL)
+			mem.AllocateMemory(nSize);	// Shouldn't happen because it's pre-allocated on Init
+		else
+			mem.ReallocateMemory(nSize);
+	}
+
+	LPBYTE pDest = mem.GetMemoryPointer();
+	ASSERT(pDest);
+
+	for (int i = 0; i < numsamples; ++i)
+	{
+		memcpy(pDest, ((LPBYTE)(Ldata + i)) + 1, sizeof(short));
+		pDest += sizeof(short);
+
+		memcpy(pDest, ((LPBYTE)(Rdata + i)) + 1, sizeof(short));
+		pDest += sizeof(short);
+	}
+
+	MemoryUSRP* pMU = dynamic_cast<MemoryUSRP*>(pUSRP->GetUSRP());
+
+	pMU->SubmitSamples(mem.GetMemoryPointer(), nSize);
 }
