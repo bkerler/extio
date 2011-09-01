@@ -30,12 +30,17 @@ void LegacyUSRP::Destroy()
 
 bool LegacyUSRP::Create(LPCTSTR strHint /*= NULL*/)
 {
+	m_strLastError.Empty();
+
 	Destroy();
 
 	//if (m_u_rx)
 	//	return false;
 
 	unsigned int unit = 0, side = 0, subdev = 0;
+
+	m_strImage.Empty();
+	m_strFirmware.Empty();
 
 	CStringArray array;
 	if (Teh::Utils::Tokenise(strHint, array, _T(' ')))
@@ -65,30 +70,47 @@ bool LegacyUSRP::Create(LPCTSTR strHint /*= NULL*/)
 		}
 
 		if (array.GetCount() > 2)
-		{
 			m_strImage = array[2];
-		}
+
+		if (array.GetCount() > 3)
+			m_strFirmware = array[3];
 	}
 
-	if (m_strImage.IsEmpty())
-		m_strImage = DEFAULT_IMAGE;
+	//if (m_strImage.IsEmpty())
+	//	m_strImage = DEFAULT_IMAGE;
 
 	usrp_subdev_spec ss(side, subdev);
 
-	m_u_rx = usrp_standard_rx::make(
+	try
+	{
+		m_u_rx = usrp_standard_rx::_make(
 			unit,
 			m_nDecimation,
 			m_nChannel,
 			m_iMux,
 			usrp_standard_rx::FPGA_MODE_NORMAL,
-			m_recv_samples_per_packet * 4/* * 2*/,
-			/*m_nBlockCount*/0,
-			(LPCSTR)CStringA(m_strImage)
-	);
+			m_recv_samples_per_packet * 4,// * 2,
+			0,	//m_nBlockCount,
+			(LPCSTR)CStringA(m_strImage),
+			(LPCSTR)CStringA(m_strFirmware)
+		);
+	}
+	catch (const std::runtime_error& e)
+	{
+		m_strLastError = _T("While creating Legacy device: ") + CString(e.what());
+		m_u_rx.reset();
+		return false;
+	}
+	catch (...)
+	{
+		m_strLastError = _T("Unknown exception while creating Legacy device");
+		m_u_rx.reset();
+		return false;
+	}
 
 	if (!m_u_rx)
 	{
-		AfxTrace(_T("Failed to create device\n"));
+		m_strLastError = _T("Failed to create Legacy device");
 		return false;
 	}
 
@@ -103,14 +125,14 @@ bool LegacyUSRP::Create(LPCTSTR strHint /*= NULL*/)
 
 	if(m_u_rx->is_valid(ss) == false)
 	{
-		AfxTrace(_T("Invalid sub-device specification\n"));
+		m_strLastError = _T("Invalid Legacy sub-device specification");
 		return false;
 	}
 
-	m_db_rx = m_u_rx->selected_subdev(ss);
+	m_db_rx = m_u_rx->selected_subdev(ss);	// Shouldn't throw because validity already checked
 	if (!m_db_rx)
 	{
-		AfxTrace(_T("No daughterboard/sub-device found given specification\n"));
+		m_strLastError = _T("No daughterboard/sub-device found given Legacy specification");
 		return false;
 	}
 
@@ -136,19 +158,38 @@ bool LegacyUSRP::Create(LPCTSTR strHint /*= NULL*/)
 
 bool LegacyUSRP::Start()
 {
-	if (!m_db_rx || !m_u_rx)
+	m_strLastError.Empty();
+
+	if (!m_u_rx)
+	{
+		m_strLastError = _T("No device");
 		return false;
+	}
+	else if (!m_db_rx)
+	{
+		m_strLastError = _T("No daughterboard");
+		return false;
+	}
 
 	if (m_bRunning)
+	{
+		m_strLastError = _T("Already running");
 		return false;
+	}
 
 	CSingleLock lock(&m_cs, TRUE);
 
 	if (m_db_rx->set_enable(1) == false)
+	{
+		m_strLastError = _T("Failed to enable RX daughterboard");
 		return false;
+	}
 
 	if (m_u_rx->start() == false)
+	{
+		m_strLastError = _T("Failed to start");
 		return false;
+	}
 
 	m_bRunning = true;
 
@@ -157,13 +198,26 @@ bool LegacyUSRP::Start()
 
 void LegacyUSRP::Stop()
 {
-	if (!m_db_rx || !m_u_rx)
-		return;
+	m_strLastError.Empty();
 
-	if (m_bRunning == false)
+	if (!m_u_rx)
+	{
+		m_strLastError = _T("No device");
 		return;
+	}
+	else if (!m_db_rx)
+	{
+		m_strLastError = _T("No daughterboard");
+		return;
+	}
 
 	CSingleLock lock(&m_cs, TRUE);
+
+	if (m_bRunning == false)
+	{
+		m_strLastError = _T("Already stopped");	// This will always be set when it's being Destroyed as no running check
+		return;
+	}
 
 	m_db_rx->set_enable(0);
 
@@ -174,69 +228,121 @@ void LegacyUSRP::Stop()
 
 bool LegacyUSRP::SetGain(double dGain)
 {
+	m_strLastError.Empty();
+
 	m_dGain = dGain;
 
-	if (!m_db_rx || !m_u_rx)
+	if (!m_u_rx)
+	{
+		m_strLastError = _T("No device");
 		return true;
+	}
+	else if (!m_db_rx)
+	{
+		m_strLastError = _T("No daughterboard");
+		return true;
+	}
 
 	CSingleLock lock(&m_cs, TRUE);
 
 	if (m_db_rx->set_gain((float)dGain) == false)
+	{
+		m_strLastError = _T("Failed to set RX gain");
 		return false;
+	}
 
 	return true;
 }
 
 bool LegacyUSRP::SetAntenna(int iIndex)
 {
+	m_strLastError.Empty();
+
 	if (iIndex < 0)
 		return false;
 
-	if (!m_db_rx || !m_u_rx)
+	if (!m_u_rx)
+	{
+		m_strLastError = _T("No device");
 		return true;
+	}
+	else if (!m_db_rx)
+	{
+		m_strLastError = _T("No daughterboard");
+		return true;
+	}
 
 	CSingleLock lock(&m_cs, TRUE);
 
 	if (m_db_rx->select_rx_antenna(iIndex) == false)
+	{
+		m_strLastError = _T("Failed to select RX antenna");
 		return false;
+	}
 
 	return true;
 }
 
 bool LegacyUSRP::SetAntenna(LPCTSTR strAntenna)
 {
+	m_strLastError.Empty();
+
 	if (IS_EMPTY(strAntenna))
 		return false;
 
 	m_strAntenna = strAntenna;
 
-	if (!m_db_rx || !m_u_rx)
+	if (!m_u_rx)
+	{
+		m_strLastError = _T("No device");
 		return true;
+	}
+	else if (!m_db_rx)
+	{
+		m_strLastError = _T("No daughterboard");
+		return true;
+	}
 
 	CSingleLock lock(&m_cs, TRUE);
 
 	if (m_db_rx->select_rx_antenna((LPCSTR)CStringA(m_strAntenna)) == false)
+	{
+		m_strLastError = _T("Failed to select RX antenna");
 		return false;
+	}
 
 	return true;
 }
 
 double LegacyUSRP::SetFreq(double dFreq)
 {
+	m_strLastError.Empty();
+
 	if (dFreq < 0)
 		return -1;
 
 	m_dFreq = dFreq;
 
-	if (!m_db_rx || !m_u_rx)
+	if (!m_u_rx)
+	{
+		m_strLastError = _T("No device");
 		return 0;
+	}
+	else if (!m_db_rx)
+	{
+		m_strLastError = _T("No daughterboard");
+		return 0;
+	}
 
 	usrp_tune_result tr;
 
 	CSingleLock lock(&m_cs, TRUE);
 
 	if (m_u_rx->tune(0, m_db_rx, dFreq, &tr) == false)
+	{
+		m_strLastError = _T("Failed to tune");
 		return false;
+	}
 
 	m_tuneResult.target_inter_freq = dFreq;
 	m_tuneResult.actual_inter_freq = tr.baseband_freq;
@@ -248,20 +354,33 @@ double LegacyUSRP::SetFreq(double dFreq)
 
 double LegacyUSRP::SetSampleRate(double dSampleRate)
 {
+	m_strLastError.Empty();
+
 	if (dSampleRate <= 0)
 		return -1.0;
 
 	m_dDesiredSampleRate = dSampleRate;
 
-	if (!m_db_rx || !m_u_rx)
+	if (!m_u_rx)
+	{
+		m_strLastError = _T("No device");
 		return 0;
+	}
+	else if (!m_db_rx)
+	{
+		m_strLastError = _T("No daughterboard");
+		return 0;
+	}
 
 	CSingleLock lock(&m_cs, TRUE);
 
 	m_nDecimation = (UINT)(m_fpga_master_clock_freq / dSampleRate);	// FIXME: Check
 
 	if (m_u_rx->set_decim_rate(m_nDecimation) == false)
+	{
+		m_strLastError = _T("Failed to set decimation rate");
 		return -1.0;
+	}
 
 	m_dSampleRate = m_fpga_master_clock_freq / (double)m_nDecimation;
 
@@ -270,6 +389,8 @@ double LegacyUSRP::SetSampleRate(double dSampleRate)
 
 std::vector<std::string> LegacyUSRP::GetAntennas() const
 {
+	const_cast<CString&>(m_strLastError).Empty();
+
 	std::vector<std::string> array;
 
 	array.push_back("TX/RX");
@@ -287,6 +408,14 @@ std::vector<std::string> LegacyUSRP::GetAntennas() const
 
 int LegacyUSRP::ReadPacket()
 {
+	//m_strLastError.Empty();
+
+	if (!m_u_rx)
+	{
+		m_strLastError = _T("No device");
+		return -1;
+	}
+
 	bool bOverrun = false;
 	int iSize = m_recv_samples_per_packet * 2 * 2;
 
@@ -306,6 +435,8 @@ int LegacyUSRP::ReadPacket()
 	{
 		if (m_bRunning == false)
 			return 0;
+
+		m_strLastError = _T("Failed to read samples");
 
 		return iResult;
 	}

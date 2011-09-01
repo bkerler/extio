@@ -44,6 +44,9 @@ BEGIN_MESSAGE_MAP(CAboutDlg, CDialog)
 	ON_NOTIFY(NM_CLICK, IDC_SYSLINK_WWW, &CAboutDlg::OnNMClickSyslinkWww)
 END_MESSAGE_MAP()
 
+// FIXME: Get version info from current file and append to About version text
+
+///////////////////////////////////////////////////////////////////////////////
 // CdialogMain dialog
 
 CdialogMain::CdialogMain(Server* pServer, CWnd* pParent /*=NULL*/)

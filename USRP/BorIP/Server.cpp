@@ -236,7 +236,12 @@ void Server::OnAccept()
 CString Server::FormatDevice()
 {
 	if (m_pUSRP == NULL)
-		return _T("-");
+	{
+		//CString str(_T("-"));
+		//if (m_strLastError.IsEmpty() == false)
+		//	str += _T(" ") + m_strLastError;
+		return /*str*/_T("-");
+	}
 
 	CString str(m_pUSRP->GetName());
 	CString strBuf;
@@ -260,6 +265,27 @@ CString Server::FormatDevice()
 
 		str += CString((*it).c_str());
 	}
+
+	return str;
+}
+
+CString Server::FormatError(LPCTSTR strError /*= NULL*/, bool bPad /*= true*/)
+{
+	CString str(strError);
+	if (str.IsEmpty())
+		str = m_strLastError;
+
+	str.Trim();
+
+	if (str.IsEmpty())
+		return str;
+
+	str.Replace(_T("\\"), _T("\\\\"));
+	str.Replace(_T("\r"), _T("\\r"));
+	str.Replace(_T("\n"), _T("\\n"));
+
+	if (bPad)
+		str = _T(" ") + str;
 
 	return str;
 }
@@ -303,7 +329,7 @@ void Server::OnCommand(CsocketClient* pSocket, const CString& str)
 			else
 			{
 				if (Start() == false)
-					strResult = _T("FAIL");
+					strResult = _T("FAIL") + FormatError();
 			}
 		}
 		else
@@ -323,6 +349,8 @@ void Server::OnCommand(CsocketClient* pSocket, const CString& str)
 	}
 	else if (strCommand == _T("DEVICE"))
 	{
+		CString strError;
+
 		if (strData.IsEmpty() == false)
 		{
 			if (strData == _T("!"))
@@ -335,11 +363,12 @@ void Server::OnCommand(CsocketClient* pSocket, const CString& str)
 				if (strData != _T("-"))
 					strHint = strData;
 
-				CreateDevice(strHint);
+				if (CreateDevice(strHint) == false)
+					strError = FormatError();
 			}
 		}
 
-		strResult = FormatDevice();
+		strResult = FormatDevice() + strError;
 	}
 	else if (strCommand == _T("FREQ"))
 	{
@@ -356,10 +385,10 @@ void Server::OnCommand(CsocketClient* pSocket, const CString& str)
 				if (m_pUSRP->SetFreq(d) < 0)
 				{
 					CString str;
-					str.Format(_T("Failed to set frequency: %f"), d);
+					str.Format(_T("Failed to set frequency: %f (%s)"), d, m_pUSRP->GetLastError());
 					Log(str);
 
-					strResult = _T("FAIL");
+					strResult = _T("FAIL") + FormatError(m_pUSRP->GetLastError());
 				}
 				else
 				{
@@ -399,10 +428,10 @@ void Server::OnCommand(CsocketClient* pSocket, const CString& str)
 				if (m_pUSRP->SetAntenna(strData) == false)
 				{
 					CString str;
-					str.Format(_T("Failed to set antenna: %s"), strData);
+					str.Format(_T("Failed to set antenna: %s (%s)"), strData, m_pUSRP->GetLastError());
 					Log(str);
 
-					strResult = _T("FAIL");
+					strResult = _T("FAIL") + FormatError(m_pUSRP->GetLastError());
 				}
 			}
 		}
@@ -424,10 +453,10 @@ void Server::OnCommand(CsocketClient* pSocket, const CString& str)
 				if (m_pUSRP->SetGain(d) == false)
 				{
 					CString str;
-					str.Format(_T("Failed to set gain: %f"), d);
+					str.Format(_T("Failed to set gain: %f (%s)"), d, m_pUSRP->GetLastError());
 					Log(str);
 
-					strResult = _T("FAIL");
+					strResult = _T("FAIL") + FormatError(m_pUSRP->GetLastError());
 				}
 			}
 		}
@@ -449,10 +478,10 @@ void Server::OnCommand(CsocketClient* pSocket, const CString& str)
 				if (m_pUSRP->SetSampleRate(d) <= 0)
 				{
 					CString str;
-					str.Format(_T("Failed to set sample rate: %f"), d);
+					str.Format(_T("Failed to set sample rate: %f (%s)"), d, m_pUSRP->GetLastError());
 					Log(str);
 
-					strResult = _T("FAIL");
+					strResult = _T("FAIL") + FormatError(m_pUSRP->GetLastError());
 				}
 				else
 				{
@@ -467,36 +496,47 @@ void Server::OnCommand(CsocketClient* pSocket, const CString& str)
 	{
 		if (strData.IsEmpty())
 		{
-			UINT nPort;
-			if (m_pClient->GetPeerName(strData, nPort) == FALSE)
-			{
-				Log(_T("Failed to get peer name for current connection"));
-			}
-		}
-
-		if (strData.IsEmpty())
-		{
-			strResult = _T("FAIL");
+			strResult = CString(inet_ntoa(m_addrDest.sin_addr)) + _T(":") + Teh::Utils::ToString(ntohs(m_addrDest.sin_port));
 		}
 		else
 		{
-			iIndex = strData.Find(_T(':'));
-			UINT nPort = BOR_PORT;
-			if (iIndex > -1)
+			bool bDefault = false;
+			if (strData == _T("-"))
 			{
-				nPort = _tstoi(strData.Mid(iIndex + 1));
-				strData = strData.Left(iIndex);
+				bDefault = true;
+
+				UINT nPort;
+				if (m_pClient->GetPeerName(strData, nPort) == FALSE)
+				{
+					Log(_T("Failed to get peer name for current connection"));
+					strResult = _T("FAIL Failed to get peer name for current connection");
+					strData.Empty();
+				}
 			}
 
-			ULONG ulAddress = inet_addr(CStringA(strData));
-			if (ulAddress == -1)
+			if (strData.IsEmpty() == false)
 			{
-				strResult = _T("FAIL");
-			}
-			else
-			{
-				m_addrDest.sin_addr.S_un.S_addr = ulAddress;
-				m_addrDest.sin_port = htons(nPort);
+				iIndex = strData.Find(_T(':'));
+				UINT nPort = BOR_PORT;
+				if (iIndex > -1)
+				{
+					nPort = _tstoi(strData.Mid(iIndex + 1));
+					strData = strData.Left(iIndex);
+				}
+
+				ULONG ulAddress = inet_addr(CStringA(strData));
+				if (ulAddress == -1)
+				{
+					strResult = _T("FAIL Use dotted IP address");
+				}
+				else
+				{
+					m_addrDest.sin_addr.S_un.S_addr = ulAddress;
+					m_addrDest.sin_port = htons(nPort);
+
+					if (bDefault)
+						strResult += _T(" ") + strData + _T(":") + Teh::Utils::ToString(nPort);
+				}
 			}
 		}
 	}
@@ -524,6 +564,8 @@ void Server::OnCommand(CsocketClient* pSocket, const CString& str)
 
 bool Server::CreateDevice(LPCTSTR strHint /*= NULL*/)
 {
+	m_strLastError.Empty();
+
 	CloseDevice();
 
 	int iIndex = -1;
@@ -546,7 +588,9 @@ bool Server::CreateDevice(LPCTSTR strHint /*= NULL*/)
 
 	if (m_pUSRP->Create(strHint) == false)
 	{
-		Log(_T("Failed to create device with hint: ") + strFilteredHint);
+		m_strLastError = m_pUSRP->GetLastError();
+
+		Log(_T("Failed to create device with hint: ") + strFilteredHint + _T(" (") + m_pUSRP->GetLastError() + _T(")"));
 
 		SAFE_DELETE(m_pUSRP);
 
@@ -602,8 +646,11 @@ static DWORD WINAPI _Worker(LPVOID lpThreadParameter)
 
 bool Server::Start()
 {
+	m_strLastError.Empty();
+
 	if (m_pUSRP == NULL)
 	{
+		m_strLastError = _T("No device");
 		Log(_T("Cannot start when no device created"));
 
 		//if (CreateDevice() == false)	// Cannot do this before information should be sent back
@@ -611,28 +658,36 @@ bool Server::Start()
 	}
 	else if (m_pUSRP->IsRunning())
 	{
-		Log(_T("Already running"));
+		m_strLastError = _T("Already running");
+		Log(m_strLastError);
 
 		return true;
+	}
+
+	m_hWorker = CreateThread(NULL, 0, _Worker, this, CREATE_SUSPENDED, &m_dwWorkerID);
+	if (m_hWorker == NULL)
+	{
+		m_strLastError = _T("Failed to create worker thread: ") + Teh::Utils::GetOSErrorMessage(GetLastError());
+		Log(m_strLastError);
+		return false;
 	}
 
 	SetPriorityClass(GetCurrentProcess(), HIGH_PRIORITY_CLASS);
 
 	if (m_pUSRP->Start() == false)
 	{
-		Log(_T("Failed to start device"));
+		m_strLastError = /*_T("Failed to start device: ") + */m_pUSRP->GetLastError();
+		Log(_T("Failed to start device: ") + m_strLastError);
+
+		ResumeThread(m_hWorker);
+		Stop();
 
 		return false;
 	}
 
 	Reset();
-	
-	m_hWorker = CreateThread(NULL, 0, _Worker, this, 0, &m_dwWorkerID);	// FIXME: Create before Start if Read won't break when not-yet-started
-	if (m_hWorker == NULL)
-	{
-		Log(_T("Failed to create worker thread"));
-		return 0;
-	}
+
+	ResumeThread(m_hWorker);
 
 	if (m_pCallback)
 	{

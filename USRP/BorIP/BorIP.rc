@@ -84,7 +84,7 @@ CAPTION "About BorIP"
 FONT 8, "MS Shell Dlg", 0, 0, 0x1
 BEGIN
     ICON            IDR_MAINFRAME,IDC_STATIC,14,14,20,20
-    LTEXT           "BorIP, Version 1.0",IDC_STATIC,42,14,114,8,SS_NOPREFIX
+    LTEXT           "BorIP, Version 1.0.1",IDC_STATIC,42,14,114,8,SS_NOPREFIX
     LTEXT           "Copyright (C) Balint Seeber 2011",IDC_STATIC,42,26,114,8
     DEFPUSHBUTTON   "OK",IDOK,132,84,50,14,WS_GROUP
     LTEXT           "Uses USRP code from GNU Radio &&\nUHD from Ettus Research.",IDC_STATIC,42,42,114,18
@@ -116,7 +116,7 @@ END
 //
 
 VS_VERSION_INFO VERSIONINFO
- FILEVERSION 1,0,0,0
+ FILEVERSION 1,0,1,0
  PRODUCTVERSION 1,0,0,0
  FILEFLAGSMASK 0x3fL
 #ifdef _DEBUG
@@ -135,7 +135,7 @@ BEGIN
             VALUE "Comments", "http://spench.net/r/BorIP"
             VALUE "CompanyName", "spench.net"
             VALUE "FileDescription", "BorIP server for network streaming baseband data from, and remote control of, your USRP"
-            VALUE "FileVersion", "1.0.0.0"
+            VALUE "FileVersion", "1.0.1.0"
             VALUE "InternalName", "BorIP.exe"
             VALUE "LegalCopyright", "(c) Balint Seeber 2011.  All rights reserved."
             VALUE "OriginalFilename", "BorIP.exe"

@@ -147,6 +147,17 @@ class LIBUSRP_SPEC usrp_standard_rx : public usrp_basic_rx, public usrp_standard
 				    const std::string fpga_filename = "",
 				    const std::string firmware_filename = ""
 				    );
+
+  static usrp_standard_rx_sptr _make(int which_board,
+				    unsigned int decim_rate,
+				    int nchan = 1,
+				    int mux = -1,
+				    int mode = 0,
+				    int fusb_block_size = 0,
+				    int fusb_nblocks = 0,
+				    const std::string fpga_filename = "",
+				    const std::string firmware_filename = ""
+				    );  // throws if trouble
   /*!
    * \brief Set decimator rate.  \p rate MUST BE EVEN and in [8, 256].
    *

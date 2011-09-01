@@ -77,6 +77,7 @@ public:
 	virtual inline UINT64 GetSamplesReceived() const=0;
 	virtual inline UINT GetOverflows() const=0;
 	virtual inline CString GetExtraInfo() const=0;
+	virtual inline CString GetLastError() const=0;
 public:
 	virtual inline void SetDesiredGain(double dGain)=0;
 	virtual inline void SetDesiredAntenna(LPCTSTR strAntenna)=0;
@@ -102,6 +103,7 @@ protected:
 	uhd::gain_range_t m_gainRange;
 	uhd::tune_result_t m_tuneResult;
 	uhd::rx_metadata_t m_metadata;
+	CString m_strLastError;
 public:
 /*	virtual bool Create(LPCTSTR strHint = NULL);
 	virtual bool Start();
@@ -158,6 +160,8 @@ public:
 	{ return m_nOverflows; }
 	virtual inline CString GetExtraInfo() const
 	{ return _T(""); }
+	virtual inline CString GetLastError() const
+	{ return m_strLastError; }
 public:
 	virtual inline void SetDesiredGain(double dGain)
 	{ m_dGain = dGain; }
@@ -377,7 +381,7 @@ protected:
 	CCriticalSection m_cs;
 	usrp_standard_rx_sptr m_u_rx;
 	db_base_sptr m_db_rx;
-	CString m_strImage;
+	CString m_strImage, m_strFirmware;
 	UINT m_nBlockCount;
 	int m_iMux;
 	UINT m_nChannel;

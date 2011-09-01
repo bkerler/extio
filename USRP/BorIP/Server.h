@@ -49,6 +49,7 @@ public:
 	UINT m_nMaxPacketSize;
 	ServerCallback* m_pCallback;
 	bool m_bHeaderless;
+	CString m_strLastError;
 public:
 	UINT m_nReadFailures;
 	UINT m_nShortReads;
@@ -77,4 +78,5 @@ public:
 	CString FormatDevice();
 	DWORD Worker();
 	void Log(const CString& str);
+	CString FormatError(LPCTSTR strError = NULL, bool bPad = true);
 };
