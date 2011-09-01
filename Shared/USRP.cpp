@@ -110,12 +110,18 @@ USRP::~USRP()
 
 bool USRP::Create(LPCTSTR strHint /*= NULL*//*, double dSampleRate = 0*/)
 {
+	m_strLastError.Empty();
+
 	if (m_dev)
+	{
+		m_strLastError = _T("Device already exists");
 		return false;
+	}
 
 	CString strFilteredHint(strHint);
 	CStringArray array;
-	uhd::usrp::subdev_spec_t subdev;
+	CString strSubDevice;
+	//uhd::usrp::subdev_spec_t subdev;
 	INT_PTR iRemove = -1;
 	if (Teh::Utils::Tokenise(strHint, array, _T(',')/*, _T(" "), true*/))	// Keep originals intact	// FIXME: Assumes NO use of "
 	{
@@ -134,7 +140,8 @@ bool USRP::Create(LPCTSTR strHint /*= NULL*//*, double dSampleRate = 0*/)
 				{
 					if ((str[0] >= _T('A')) && (str[0] <= _T('Z')))
 					{
-						subdev = uhd::usrp::subdev_spec_t(std::string(CStringA(str)) + ":0");
+						strSubDevice = str + _T(":0");
+						//subdev = uhd::usrp::subdev_spec_t(std::string(CStringA(str)) + ":0");
 						iRemove = i;
 						break;
 					}
@@ -148,7 +155,8 @@ bool USRP::Create(LPCTSTR strHint /*= NULL*//*, double dSampleRate = 0*/)
 			if ((str[0] < _T('A')) || (str[0] > _T('Z')))
 				continue;
 
-			subdev = uhd::usrp::subdev_spec_t(std::string(CStringA(str)));
+			strSubDevice = str;
+			//subdev = uhd::usrp::subdev_spec_t(std::string(CStringA(str)));
 			iRemove = i;
 			break;
 		}
@@ -168,20 +176,39 @@ bool USRP::Create(LPCTSTR strHint /*= NULL*//*, double dSampleRate = 0*/)
 		if (!(m_dev = uhd::usrp::single_usrp::make(dev_addr)))
 			return false;
 	}
+/*	catch (const uhd::exception& e)
+	{
+		//e->dynamic_clone();
+		e.what();
+		return false;
+	}
+*/	catch (const std::runtime_error& e)
+	{
+		m_strLastError = _T("While creating UHD device: ") + CString(e.what());
+		return false;
+	}
 	catch (...)
 	{
+		m_strLastError = _T("Unknown while creating UHD device");
 		return false;
 	}
 
-	if (subdev.empty() == false)
+	//if (subdev.empty() == false)
+	if (strSubDevice.IsEmpty() == false)
 	{
 		try
 		{
-			m_dev->set_rx_subdev_spec(subdev);
+			m_dev->set_rx_subdev_spec(/*subdev*/uhd::usrp::subdev_spec_t(std::string(CStringA(strSubDevice))));
+		}
+		catch (const std::runtime_error& e)
+		{
+			m_strLastError = _T("While setting UHD RX sub-device: ") + CString(e.what());
+			return false;
 		}
 		catch (...)
 		{
-			AfxTrace(_T("Failed to set sub-device specification: %s\n"), strHint);
+			//AfxTrace(_T("Failed to set sub-device specification: %s\n"), strHint);
+			m_strLastError = _T("Unknown while setting UHD RX sub-device");
 			return false;
 		}
 	}
@@ -242,13 +269,21 @@ bool USRP::SetClock()
 */
 double USRP::SetSampleRate(double dSampleRate)
 {
+	m_strLastError.Empty();
+
 	if (dSampleRate <= 0)
+	{
+		m_strLastError = _T("Invalid sample rate");
 		return -1.0;
+	}
 
 	m_dDesiredSampleRate = dSampleRate;
 
 	if (!m_dev)
+	{
+		m_strLastError = _T("No device");
 		return 0.0;
+	}
 
 	CSingleLock lock(&m_cs, TRUE);
 
@@ -256,8 +291,14 @@ double USRP::SetSampleRate(double dSampleRate)
 	{
 		m_dev->set_rx_rate(m_dDesiredSampleRate);
 	}
+	catch (const std::runtime_error& e)
+	{
+		m_strLastError = _T("While setting RX rate: ") + CString(e.what());
+		return -1.0;
+	}
 	catch (...)
 	{
+		m_strLastError = _T("Unknown while setting RX rate");
 		return -1.0;
 	}
 
@@ -270,13 +311,18 @@ double USRP::SetSampleRate(double dSampleRate)
 
 bool USRP::SetGain(double dGain)
 {
+	m_strLastError.Empty();
+
 	//if ((dGain < 0.0) || (1.0 < dGain))
 	//	return false;
 
 	m_dGain = dGain;
 
 	if (!m_dev)
+	{
+		m_strLastError = _T("No device");
 		return true;
+	}
 
 	CSingleLock lock(&m_cs, TRUE);
 
@@ -286,8 +332,14 @@ bool USRP::SetGain(double dGain)
 
 		m_dev->set_rx_gain(dGain);
 	}
+	catch (const std::runtime_error& e)
+	{
+		m_strLastError = _T("While setting gain: ") + CString(e.what());
+		return false;
+	}
 	catch (...)
 	{
+		m_strLastError = _T("Unknown while setting gain");
 		return false;
 	}
 
@@ -296,6 +348,8 @@ bool USRP::SetGain(double dGain)
 
 std::vector<std::string> USRP::GetAntennas() const
 {
+	const_cast<CString&>(m_strLastError).Empty();
+
 	std::vector<std::string> array;
 
 	if (m_dev)
@@ -304,11 +358,17 @@ std::vector<std::string> USRP::GetAntennas() const
 		{
 			array = m_dev->get_rx_antennas();
 		}
+		catch (const std::runtime_error& e)
+		{
+			const_cast<CString&>(m_strLastError) = _T("While getting RX antennas: ") + CString(e.what());
+		}
 		catch (...)
 		{
-			//
+			const_cast<CString&>(m_strLastError) = _T("Unknown while getting RX antennas");
 		}
 	}
+	else
+		const_cast<CString&>(m_strLastError) = _T("No device");
 
 /*	if ((array.empty()) ||
 		((array.size() == 1) && (array[0].empty())))
@@ -325,12 +385,25 @@ std::vector<std::string> USRP::GetAntennas() const
 
 bool USRP::SetAntenna(int iIndex)
 {
-	if ((!m_dev) || (iIndex < 0))
+	m_strLastError.Empty();
+
+	if (!m_dev)
+	{
+		m_strLastError = _T("No device");
 		return false;
+	}
+	else if (iIndex < 0)
+	{
+		m_strLastError = _T("Non-positive index");
+		return false;
+	}
 
 	std::vector<std::string> antennas = m_dev->get_rx_antennas();
 	if (iIndex >= (int)antennas.size())
+	{
+		m_strLastError = _T("Index outside array");
 		return false;
+	}
 
 	m_strAntenna = CStringA(antennas[iIndex].c_str());
 
@@ -340,8 +413,14 @@ bool USRP::SetAntenna(int iIndex)
 	{
 		m_dev->set_rx_antenna((LPCSTR)CStringA(m_strAntenna));
 	}
+	catch (const std::runtime_error& e)
+	{
+		m_strLastError = _T("While setting antenna: ") + CString(e.what());
+		return false;
+	}
 	catch (...)
 	{
+		m_strLastError = _T("Unknown while setting antenna");
 		return false;
 	}
 
@@ -350,13 +429,21 @@ bool USRP::SetAntenna(int iIndex)
 
 bool USRP::SetAntenna(LPCTSTR strAntenna)
 {
+	m_strLastError.Empty();
+
 	if (IS_EMPTY(strAntenna))
+	{
+		m_strLastError = _T("Empty antenna");
 		return false;
+	}
 
 	m_strAntenna = strAntenna;
 
 	if (!m_dev)
+	{
+		m_strLastError = _T("No device");
 		return true;
+	}
 
 	CSingleLock lock(&m_cs, TRUE);
 
@@ -364,8 +451,14 @@ bool USRP::SetAntenna(LPCTSTR strAntenna)
 	{
 		m_dev->set_rx_antenna((LPCSTR)CStringA(m_strAntenna));
 	}
+	catch (const std::runtime_error& e)
+	{
+		m_strLastError = _T("While setting antenna: ") + CString(e.what());
+		return false;
+	}
 	catch (/*std::exception*//*uhd::assertion_error*/...)	// Invalid antenna
 	{
+		m_strLastError = _T("Unknown while setting antenna");
 		return false;
 	}
 
@@ -374,13 +467,21 @@ bool USRP::SetAntenna(LPCTSTR strAntenna)
 
 double USRP::SetFreq(double dFreq)
 {
+	m_strLastError.Empty();
+
 	if (dFreq < 0)
+	{
+		m_strLastError = _T("Non-positive frequency");
 		return -1;
+	}
 
 	m_dFreq = dFreq;
 
 	if (!m_dev)
+	{
+		m_strLastError = _T("No device");
 		return 0;
+	}
 
 	CSingleLock lock(&m_cs, TRUE);
 
@@ -388,8 +489,14 @@ double USRP::SetFreq(double dFreq)
 	{
 		m_tuneResult = m_dev->set_rx_freq(dFreq);
 	}
+	catch (const std::runtime_error& e)
+	{
+		m_strLastError = _T("While setting frequency: ") + CString(e.what());
+		return -1;
+	}
 	catch (...)
 	{
+		m_strLastError = _T("Unknown while setting frequency");
 		return -1;
 	}
 
@@ -398,11 +505,19 @@ double USRP::SetFreq(double dFreq)
 
 bool USRP::Start()
 {
+	m_strLastError.Empty();
+
 	if (!m_dev)
+	{
+		m_strLastError = _T("No device");
 		return false;
+	}
 
 	if (m_bRunning)
+	{
+		m_strLastError = _T("Already running");
 		return true;
+	}
 
 	uhd::stream_cmd_t cmd =	uhd::stream_cmd_t::STREAM_MODE_START_CONTINUOUS;
 
@@ -412,8 +527,14 @@ bool USRP::Start()
 	{
 		m_dev->issue_stream_cmd(cmd);
 	}
+	catch (const std::runtime_error& e)
+	{
+		m_strLastError = _T("While starting stream: ") + CString(e.what());
+		return false;
+	}
 	catch (...)
 	{
+		m_strLastError = _T("Unknown while starting stream");
 		return false;
 	}
 
@@ -426,11 +547,19 @@ bool USRP::Start()
 
 void USRP::Stop()
 {
+	m_strLastError.Empty();
+
 	if (!m_dev)
+	{
+		m_strLastError = _T("No device");
 		return;
+	}
 
 	if (m_bRunning == false)
+	{
+		m_strLastError = _T("Already stopped");
 		return;
+	}
 
 	uhd::stream_cmd_t cmd = uhd::stream_cmd_t::STREAM_MODE_STOP_CONTINUOUS;
 
@@ -440,9 +569,15 @@ void USRP::Stop()
 	{
 		m_dev->issue_stream_cmd(cmd);
 	}
+	catch (const std::runtime_error& e)
+	{
+		m_strLastError = _T("While stopping stream: ") + CString(e.what());
+		//return;
+	}
 	catch (...)
 	{
-		return;
+		m_strLastError = _T("Unknown while stopping stream");
+		//return;
 	}
 
 	m_bRunning = false;
@@ -450,8 +585,23 @@ void USRP::Stop()
 
 int USRP::ReadPacket()
 {
-	if ((!m_dev) || (!m_recv_samples_per_packet) || (!m_pBuffer))
+	//m_strLastError.Empty();	// Skipping this here
+
+	if (!m_dev)
+	{
+		m_strLastError = _T("No device");
 		return -1;
+	}
+	else if (!m_recv_samples_per_packet)
+	{
+		m_strLastError = _T("Un-calculated samples per packet");
+		return -1;
+	}
+	else if (!m_pBuffer)
+	{
+		m_strLastError = _T("Un-allocated sample buffer");
+		return -1;
+	}
 
 	//if (m_bRunning == false)	// FIXME: Does recv block when not yet running? Returns error value?
 	//	return;
@@ -479,10 +629,21 @@ int USRP::ReadPacket()
 
 		return samples_read;
 	}
+	catch (const std::runtime_error& e)
+	{
+		if (m_bRunning == false)
+			return 0;
+
+		m_strLastError = _T("While reading samples: ") + CString(e.what());
+
+		return -1;
+	}
 	catch (...)
 	{
 		if (m_bRunning == false)
 			return 0;
+
+		m_strLastError = _T("Unknown while reading samples");
 
 		return -1;
 	}

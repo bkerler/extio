@@ -42,6 +42,8 @@ BEGIN_MESSAGE_MAP(CAboutDlg, CDialog)
 	ON_BN_CLICKED(IDC_BUTTON_WWW, &CAboutDlg::OnBnClickedButtonWww)
 END_MESSAGE_MAP()
 
+// FIXME: Get version info from current file and append to About version text
+
 ///////////////////////////////////////////////////////////////////////////////
 // CdialogExtIO dialog
 

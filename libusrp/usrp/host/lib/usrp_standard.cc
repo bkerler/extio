@@ -378,6 +378,24 @@ usrp_standard_rx::stop ()
 }
 
 usrp_standard_rx_sptr
+usrp_standard_rx::_make (int which_board,
+			unsigned int decim_rate,
+			int nchan, int mux, int mode,
+			int fusb_block_size, int fusb_nblocks,
+			const std::string fpga_filename,
+			const std::string firmware_filename
+			)
+{
+    usrp_standard_rx_sptr u = 
+      usrp_standard_rx_sptr(new usrp_standard_rx(which_board, decim_rate,
+						 nchan, mux, mode,
+						 fusb_block_size, fusb_nblocks,
+						 fpga_filename, firmware_filename));
+    u->init_db(u);
+    return u;
+}
+
+usrp_standard_rx_sptr
 usrp_standard_rx::make (int which_board,
 			unsigned int decim_rate,
 			int nchan, int mux, int mode,
@@ -388,10 +406,10 @@ usrp_standard_rx::make (int which_board,
 {
   try {
     usrp_standard_rx_sptr u = 
-      usrp_standard_rx_sptr(new usrp_standard_rx(which_board, decim_rate,
+      _make(which_board, decim_rate,
 						 nchan, mux, mode,
 						 fusb_block_size, fusb_nblocks,
-						 fpga_filename, firmware_filename));
+						 fpga_filename, firmware_filename);
     u->init_db(u);
     return u;
   }

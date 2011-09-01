@@ -228,6 +228,8 @@ static DWORD WINAPI _ReceiveThread(LPVOID lpThreadParameter)
 
 bool RemoteUSRP::Connect(LPCTSTR strAddress, LPCTSTR strHint /*= NULL*/)
 {
+	m_strLastError = _T("Creating local state");
+
 	if (IS_EMPTY(strAddress))
 		return false;
 
@@ -283,14 +285,18 @@ bool RemoteUSRP::Connect(LPCTSTR strAddress, LPCTSTR strHint /*= NULL*/)
 	else
 		m_pClient = new CsocketClient(this);
 
+	m_strLastError.Empty();
+
 	if (m_pClient->Create() == FALSE)
 	{
+		m_strLastError = _T("Failed to create local command socket");
 		goto connect_failure;
 	}
 
 	m_hDataSocket = WSASocket(AF_INET, SOCK_DGRAM, 0, NULL, 0, WSA_FLAG_OVERLAPPED);
 	if (m_hDataSocket == INVALID_SOCKET)
 	{
+		m_strLastError = _T("Failed to create local receive socket");
 		goto connect_failure;
 	}
 
@@ -302,6 +308,7 @@ bool RemoteUSRP::Connect(LPCTSTR strAddress, LPCTSTR strHint /*= NULL*/)
 	int iResult = bind(m_hDataSocket, (sockaddr*)&addr, sizeof(addr));
 	if (iResult == SOCKET_ERROR)
 	{
+		m_strLastError = _T("Failed to bind local receive socket");
 		goto connect_failure;
 	}
 
@@ -327,6 +334,7 @@ bool RemoteUSRP::Connect(LPCTSTR strAddress, LPCTSTR strHint /*= NULL*/)
 	m_hThread = CreateThread(NULL, 0, _ReceiveThread, this, 0, &m_dwThreadID);	// FIXME: Create before Start if Read won't break when not-yet-started
 	if (m_hThread == NULL)
 	{
+		m_strLastError = _T("Failed to start receive thread");
 		goto connect_failure;
 	}
 
@@ -404,6 +412,7 @@ bool RemoteUSRP::Connect(LPCTSTR strAddress, LPCTSTR strHint /*= NULL*/)
 */
 	if (m_pClient->Connect(strAddress, BOR_PORT) == FALSE)
 	{
+		m_strLastError = _T("Failed to connect to remote server");
 		goto connect_failure;
 	}
 
@@ -765,18 +774,55 @@ void RemoteUSRP::OnCommand(CsocketClient* pSocket, const CString& str)
 		strData = str.Mid(iIndex + 1).Trim();
 	}
 
-	strCommand = strCommand.MakeUpper();
+	strCommand.MakeUpper();
 
-	if ((strData == _T("FAIL")) ||
-		(strData == _T("DEVICE")))
+	//CStringArray array;
+	CString strResult, strResidual;
+	//if (Teh::Utils::Tokenise(strData, array, _T(' '), true))
+	iIndex = strData.Find(_T(' '));
+	if (iIndex > -1)
 	{
-		// Don't process command as this is an error
+		//strResult = array[0];
+		strResult = strData.Left(iIndex);
+		strResult.MakeUpper();
+
+		//strResidual = strData.Mid(strResult.GetLength()).Trim();
+		strResidual = strData.Mid(iIndex + 1).Trim();
+
+		CMapStringToString map;
+		map[_T("\\\\")] = _T("\\");
+		map[_T("\\n")] = _T("\n");
+		map[_T("\\r")] = _T("\r");
+		Teh::Utils::Replace(strResidual, map);
+	}
+
+	m_strLastError.Empty();
+
+	if (strResult == _T("FAIL"))
+	{
+		if (strResidual.IsEmpty() == false)	// Discard error message (store in separate variable)
+		{
+			m_strLastError = strResidual;
+			strData = strResult;	// Checked in other functions
+		}
+		else
+			m_strLastError = _T("(unknown)");
+	}
+	else if (strResult == _T("DEVICE"))
+	{
+		m_strLastError = _T("Device has not been created");
 	}
 	else if (strCommand == _T("DEVICE"))
 	{
-		if (strData == _T("-"))
+		if (strResult == _T("-"))
 		{
 			m_strName.Empty();
+
+			if (strResidual.IsEmpty() == false)
+			{
+				m_strLastError = strResidual;
+				strData = strResult;
+			}
 		}
 		else
 		{

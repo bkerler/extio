@@ -33,6 +33,7 @@ ExtIO_USRP::ExtIO_USRP()
 	, m_bRemoteDevice(FALSE)
 	, m_lOffset(0)
 	, m_bUseOffset(FALSE)
+	, m_bSkipFailedXMLRPC(false)
 {
 	ZERO_MEMORY(m_lIFLimits);
 
@@ -243,16 +244,16 @@ bool ExtIO_USRP::Open(LPCTSTR strHint /*= NULL*/, LPCTSTR strAddress /*= NULL*/)
 
 	if (m_pUSRP->Create(m_strDevice) == false)
 	{
-		m_pDialog->_Log(_T("Failed to create device"));
+		m_pDialog->_Log(_T("Failed to create device: ") + m_pUSRP->GetLastError());
 
 		if (m_strDevice.IsEmpty() == false)
 		{
-			if (AfxMessageBox(_T("Failed to create USRP: ") + m_strDevice + _T("\n\nTry without device hint?"), MB_ICONWARNING | MB_YESNO | MB_DEFBUTTON2) == IDYES)
+			if (AfxMessageBox(_T("Failed to create USRP: ") + m_strDevice + _T("\n\n(") + m_pUSRP->GetLastError() + _T(")\n\nTry without device hint?"), MB_ICONWARNING | MB_YESNO | MB_DEFBUTTON2) == IDYES)
 			{
 				if (m_pUSRP->Create() == false)
 				{
-					m_pDialog->_Log(_T("Failed to create default device"));
-					AfxMessageBox(_T("Failed to create default USRP even without device hint"));
+					m_pDialog->_Log(_T("Failed to create default device: ") + m_pUSRP->GetLastError());
+					AfxMessageBox(_T("Failed to create default USRP even without device hint:\n\n") + m_pUSRP->GetLastError());
 
 					SAFE_DELETE(m_pUSRP);
 					return false;
@@ -266,7 +267,7 @@ bool ExtIO_USRP::Open(LPCTSTR strHint /*= NULL*/, LPCTSTR strAddress /*= NULL*/)
 		}
 		else
 		{
-			AfxMessageBox(_T("Failed to create USRP without device hint"));
+			AfxMessageBox(_T("Failed to create USRP without device hint:\n\n") + m_pUSRP->GetLastError());
 
 			SAFE_DELETE(m_pUSRP);
 			return false;
@@ -293,7 +294,9 @@ bool ExtIO_USRP::Open(LPCTSTR strHint /*= NULL*/, LPCTSTR strAddress /*= NULL*/)
 
 	if (m_pUSRP->SetSampleRate(m_dSampleRate) <= 0)	// Must be called as GetHWSR will be called next
 	{
-		AfxMessageBox(_T("Failed to set initial sampling rate: ") + Teh::Utils::ToString(m_dSampleRate));
+		CString str(_T("Failed to set initial sampling rate: ") + Teh::Utils::ToString(m_dSampleRate));
+		m_pDialog->_Log(str + _T(" (") + m_pUSRP->GetLastError() + _T(")"));
+		AfxMessageBox(str + _T("\n\n") + m_pUSRP->GetLastError());
 
 		return false;
 	}
@@ -331,14 +334,14 @@ void ExtIO_USRP::Close()
 	/////////////////////////////////////
 	// Only save it if a device exists, because then it'll be saved to the correct location
 
-	m_pDialog->_Log(_T("Saving settings for: ") + m_strSerial);
-
 	//ASSERT((m_strSerial.IsEmpty() == false) && (m_strSerial != SETTINGS_SECTION));
 
 	CopyFrom(m_pUSRP);
 
 	if ((m_strSerial.IsEmpty() == false) && (m_strSerial != SETTINGS_SECTION))
 	{
+		m_pDialog->_Log(_T("Saving settings for: ") + m_strSerial);
+
 		SAVE_INT(m_dFreq);
 		SAVE_FLOAT(m_dGain);
 		SAVE_STRING(m_strAntenna);
@@ -375,7 +378,10 @@ bool ExtIO_USRP::SetSampleRate(double dSampleRate)
 		return true;
 
 	if (m_pUSRP->SetSampleRate(dSampleRate) <= 0)
+	{
+		m_pDialog->_Log(_T("While setting sample rate: ") + m_pUSRP->GetLastError());
 		return false;
+	}
 
 	Signal(CS_HWSRChange);
 
@@ -397,7 +403,10 @@ int ExtIO_USRP::SetLO(ULONG lFreq)
 	m_pDialog->_UpdateUI(CdialogExtIO::UF_TUNE_INFO);	// Update regardless of error
 
 	if (d < 0)
+	{
+		m_pDialog->_Log(_T("While setting frequency: ") + m_pUSRP->GetLastError());
 		return 1;
+	}
 
 	return m_pUSRP->WasTuneSuccessful(/*m_pUSRP->GetTuneResult()*/);	// Return 0 if the frequency is within the limits the HW can generate
 }
@@ -423,6 +432,20 @@ void ExtIO_USRP::SetTunedFrequency(long lFreq)
 			if (m_pXMLRPCClient->execute("set_xlate_offset", args, result) == false)
 			{
 				m_pDialog->_Log(_T("Failed to execute XML-RPC command - is the server running?"));
+
+				if (m_bSkipFailedXMLRPC == false)
+				{
+					int iResult = AfxMessageBox(_T("Failed to sending tuning offset via XML-RPC. The server might not be running.\n\nWould you like to switch this feature off until you re-enable the server later?\n\n('Cancel' will leave it enabled and prevent this from being shown again this session.)"), MB_YESNOCANCEL);
+					if (iResult == IDCANCEL)
+					{
+						m_bSkipFailedXMLRPC = true;
+					}
+					else if (iResult == IDYES)
+					{
+						DisableXMLRPCIF();
+						m_pDialog->_UpdateUI(CdialogExtIO::UF_RELAY);
+					}
+				}
 			}
 		}
 	}
@@ -483,13 +506,25 @@ int ExtIO_USRP::Start()
 	bool bResult = true;
 retry_start:
 	if (m_pUSRP->SetSampleRate(m_dSampleRate) <= 0)
+	{
+		m_pDialog->_Log(_T("While setting sample rate: ") + m_pUSRP->GetLastError());
 		bResult = false;
+	}
 	if (m_pUSRP->SetGain(m_dGain) == false)
+	{
+		m_pDialog->_Log(_T("While setting gain: ") + m_pUSRP->GetLastError());
 		bResult = false;
+	}
 	if (m_pUSRP->SetAntenna(m_strAntenna) == false)
+	{
+		m_pDialog->_Log(_T("While setting antenna: ") + m_pUSRP->GetLastError());
 		bResult = false;
+	}
 	if (m_pUSRP->SetFreq(m_dFreq) < 0)	// Set here the frequency of the controlled hardware to LOfreq
+	{
+		m_pDialog->_Log(_T("While setting frequency: ") + m_pUSRP->GetLastError());
 		bResult = false;
+	}
 
 	bool bError = false;
 	if ((bResult == false) && (m_bError))
@@ -547,8 +582,9 @@ retry_start:
 
 	if (m_pUSRP->Start() == false)
 	{
+		m_pDialog->_Log(_T("While starting streaming: ") + m_pUSRP->GetLastError());
 		Signal(CS_Stop);
-		AfxMessageBox(_T("Failed to start USRP"));
+		AfxMessageBox(_T("Failed to start USRP:\n\n") + m_pUSRP->GetLastError());
 		return 0;
 	}
 

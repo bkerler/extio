@@ -637,6 +637,10 @@ __declspec(dllexport) void __stdcall RawDataReady(long samprate, int *Ldata, int
 	if ((int)nSize <= 0)
 		return;
 
+	MemoryUSRP* pMU = dynamic_cast<MemoryUSRP*>(pUSRP->GetUSRP());
+	if (pMU == NULL)	// FIXME: Was playing back, then created remote connection, then Start
+		return;
+
 	Teh::MemoryContainer& mem = theApp._GetPlaybackMemory();
 
 	if (mem.GetMemoryLength() != nSize)
@@ -658,8 +662,6 @@ __declspec(dllexport) void __stdcall RawDataReady(long samprate, int *Ldata, int
 		memcpy(pDest, ((LPBYTE)(Rdata + i)) + 1, sizeof(short));
 		pDest += sizeof(short);
 	}
-
-	MemoryUSRP* pMU = dynamic_cast<MemoryUSRP*>(pUSRP->GetUSRP());
 
 	pMU->SubmitSamples(mem.GetMemoryPointer(), nSize);
 }

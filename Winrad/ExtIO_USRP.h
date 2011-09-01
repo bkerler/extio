@@ -52,6 +52,7 @@ private:
 	bool m_bError;
 	bool m_bForceSampleRateUpdate;
 	BOOL m_bRemoteDevice;
+	bool m_bSkipFailedXMLRPC;
 private:
 	SOCKET m_hDataSocket;
 	UINT m_nMaxPacketSize;
