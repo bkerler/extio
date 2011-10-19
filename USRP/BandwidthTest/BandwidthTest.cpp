@@ -35,7 +35,7 @@ int _tmain(int argc, TCHAR* argv[], TCHAR* envp[])
 	///////////////////////////////////////////////////////////////////////////
 
 	const int iReceiveBufferSize = 1024 * 1024;
-	const DWORD dwExpectedPacketSize = 4096 * 2 * 2 + 3;
+	const DWORD dwExpectedPacketSize = 4096 * 2 * 2 + (sizeof(BOR_PACKET) - 1);
 
 	_tprintf(_T("Initialising...\n"));
 

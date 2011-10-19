@@ -68,7 +68,7 @@
 			/>
 			<Tool
 				Name="VCLinkerTool"
-				AdditionalDependencies="uhd.lib"
+				AdditionalDependencies="uhd.lib dsound.lib dxguid.lib setupapi.lib"
 				LinkIncremental="2"
 				AdditionalLibraryDirectories="&quot;C:\Users\Balint Seeber\Documents\Visual Studio 2008\Projects\_Source\EttusResearch-UHD-Mirror-81e891f\host\_Build\lib\Debug&quot;"
 				GenerateDebugInformation="true"
@@ -151,7 +151,7 @@
 			/>
 			<Tool
 				Name="VCLinkerTool"
-				AdditionalDependencies="uhd.lib"
+				AdditionalDependencies="uhd.lib dsound.lib dxguid.lib setupapi.lib"
 				LinkIncremental="1"
 				AdditionalLibraryDirectories="&quot;C:\Users\Balint Seeber\Documents\Visual Studio 2008\Projects\_Source\EttusResearch-UHD-Mirror-81e891f\host\_Build\lib\RelWithDebInfo&quot;"
 				GenerateDebugInformation="true"
@@ -236,7 +236,7 @@
 			/>
 			<Tool
 				Name="VCLinkerTool"
-				AdditionalDependencies="uhd.lib"
+				AdditionalDependencies="uhd.lib dsound.lib dxguid.lib setupapi.lib"
 				LinkIncremental="1"
 				AdditionalLibraryDirectories="&quot;C:\Users\Balint Seeber\Documents\Visual Studio 2008\Projects\_Source\EttusResearch-UHD-Mirror-81e891f\host\_Build\lib\RelWithDebInfo&quot;"
 				GenerateDebugInformation="true"
@@ -284,6 +284,10 @@
 			</File>
 			<File
 				RelativePath=".\dialogMain.cpp"
+				>
+			</File>
+			<File
+				RelativePath="..\Shared\FUNcubeDongle.cpp"
 				>
 			</File>
 			<File
@@ -354,6 +358,10 @@
 			</File>
 			<File
 				RelativePath=".\dialogMain.h"
+				>
+			</File>
+			<File
+				RelativePath="..\Shared\FUNcubeDongle.h"
 				>
 			</File>
 			<File

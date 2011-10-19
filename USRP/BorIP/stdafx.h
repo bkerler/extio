@@ -52,6 +52,12 @@
 #include <TehBase\TehAfx.h>
 #include <afxcontrolbars.h>     // MFC support for ribbons and control bars
 
+#include <setupapi.h>
+#include <devguid.h>
+
+#include <mmsystem.h>
+#include <dsound.h>
+
 #include <psapi.h>
 
 #include <TehBase\TehUtils.h>

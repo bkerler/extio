@@ -5,6 +5,30 @@
 #include "socketClient.h"
 #include "USRP.h"
 #include "BorIP.h"
+#include "FUNcubeDongle.h"
+
+static void AFX_CDECL _AfxTrace(LPCTSTR lpszFormat, ...)
+{
+	va_list args;
+	va_start(args, lpszFormat);
+
+	int nBuf;
+	TCHAR szBuffer[512];
+
+	nBuf = _vstprintf_s(szBuffer, _countof(szBuffer), lpszFormat, args); 
+
+	// was there an error? was the expanded string too long?
+	ASSERT(nBuf >= 0);
+
+	//afxDump << szBuffer;
+	OutputDebugString(szBuffer);
+
+	va_end(args);
+}
+
+#ifndef _DEBUG
+#define AfxTrace	_AfxTrace
+#endif // _DEBUG
 
 #ifdef _DEBUG
 #define new DEBUG_NEW
@@ -22,6 +46,7 @@ Server::Server()
 	, m_nMaxPacketSize(0)
 	, m_pCallback(NULL)
 	, m_bHeaderless(false)
+	, m_iDefaultPort(BOR_PORT)
 {
 	ZERO_MEMORY(m_addrDest);
 
@@ -100,10 +125,11 @@ bool Server::Initialise(ServerCallback* pCallback /*= NULL*/, int iListenerPort 
 
 	m_pListener = new CsocketListener(this);
 
-	if (m_pListener->Create(((iListenerPort > 0) ? iListenerPort : BOR_PORT)) == FALSE)
+	m_iDefaultPort = ((iListenerPort > 0) ? iListenerPort : BOR_PORT);
+	if (m_pListener->Create(m_iDefaultPort) == FALSE)
 	{
 		CString str;
-		str.Format(_T("Failed to create listener on port %i"), BOR_PORT);
+		str.Format(_T("Failed to create listener on port %i"), m_iDefaultPort);
 		Log(str);
 		return false;
 	}
@@ -111,7 +137,7 @@ bool Server::Initialise(ServerCallback* pCallback /*= NULL*/, int iListenerPort 
 	if (m_pListener->Listen() == FALSE)
 	{
 		CString str;
-		str.Format(_T("Failed to listen on port %i"), BOR_PORT);
+		str.Format(_T("Failed to listen on port %i"), m_iDefaultPort);
 		Log(str);
 		return false;
 	}
@@ -221,7 +247,7 @@ void Server::OnAccept()
 		m_pCallback->OnServerEvent(event);
 	}
 
-	m_addrDest.sin_port = htons(BOR_PORT);
+	m_addrDest.sin_port = htons(m_iDefaultPort);
 
 	m_bHeaderless = false;
 
@@ -517,7 +543,7 @@ void Server::OnCommand(CsocketClient* pSocket, const CString& str)
 			if (strData.IsEmpty() == false)
 			{
 				iIndex = strData.Find(_T(':'));
-				UINT nPort = BOR_PORT;
+				UINT nPort = m_iDefaultPort;
 				if (iIndex > -1)
 				{
 					nPort = _tstoi(strData.Mid(iIndex + 1));
@@ -569,15 +595,23 @@ bool Server::CreateDevice(LPCTSTR strHint /*= NULL*/)
 	CloseDevice();
 
 	int iIndex = -1;
+	bool bFCD = false;
 	CStringArray array;
 	if (Teh::Utils::Tokenise(strHint, array, _T(' ')))
 	{
-		iIndex = _tstoi(array[0]);
-		if ((iIndex == 0) && (array[0] != _T("0")))
-			iIndex = -1;
+		if (array[0].CompareNoCase(_T("fcd")) == 0)
+			bFCD = true;
+		else
+		{
+			iIndex = _tstoi(array[0]);
+			if ((iIndex == 0) && (array[0] != _T("0")))
+				iIndex = -1;
+		}
 	}
 
-	if (iIndex > -1)
+	if (bFCD)
+		m_pUSRP = new FUNcubeDongle();
+	else if (iIndex > -1)
 		m_pUSRP = new LegacyUSRP();
 	else
 		m_pUSRP = new USRP();
@@ -687,6 +721,8 @@ bool Server::Start()
 
 	Reset();
 
+	ResetEvent(m_hEvent);
+
 	ResumeThread(m_hWorker);
 
 	if (m_pCallback)
@@ -710,11 +746,13 @@ void Server::Stop()
 
 	SetPriorityClass(GetCurrentProcess(), NORMAL_PRIORITY_CLASS);
 
+	SetEvent(m_hEvent);
+
 	m_pUSRP->Stop();
 
 	if (m_hWorker)
 	{
-		SetEvent(m_hEvent);
+		//SetEvent(m_hEvent);
 
 		AfxTrace(_T("Waiting for termination of thread 0x%x...\n"), m_dwWorkerID);
 

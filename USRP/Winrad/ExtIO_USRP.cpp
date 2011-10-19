@@ -290,9 +290,15 @@ bool ExtIO_USRP::Open(LPCTSTR strHint /*= NULL*/, LPCTSTR strAddress /*= NULL*/)
 	LOAD_INT(m_bUseOffset);
 	LOAD_INT(m_lOffset);
 
+	if ((m_dGain < m_pUSRP->GetGainRange().start()) || (m_dGain > m_pUSRP->GetGainRange().stop()))
+		m_dGain = m_pUSRP->GetGainRange().start();
+	if (m_strAntenna.IsEmpty() && (m_pUSRP->GetAntennas().empty() == false))
+		m_strAntenna = CString(m_pUSRP->GetAntennas()[0].c_str());
+
 	/////////////////////////////////////
 
-	if (m_pUSRP->SetSampleRate(m_dSampleRate) <= 0)	// Must be called as GetHWSR will be called next
+	//if (m_pUSRP->SetSampleRate(m_dSampleRate) <= 0)	// Must be called as GetHWSR will be called next
+	if (SetSampleRate(m_dSampleRate) == false)
 	{
 		CString str(_T("Failed to set initial sampling rate: ") + Teh::Utils::ToString(m_dSampleRate));
 		m_pDialog->_Log(str + _T(" (") + m_pUSRP->GetLastError() + _T(")"));
@@ -531,7 +537,7 @@ retry_start:
 	{
 		int iResult = IDRETRY;
 
-		if (CAN_CAST(m_pUSRP, RemoteUSRP) == false)
+		//if (CAN_CAST(m_pUSRP, RemoteUSRP) == false)
 			iResult = AfxMessageBox(_T("Failed to set some USRP parameters.\nThis is probably due to your device being disconnected.\nMake sure it is connected before continuing!\n\nAbort:\tStop\nRetry:\tAttempt to re-create device (probably will not work if device link was broken)\nIgnore:\tContinue (expect things to break/hang)"), MB_ABORTRETRYIGNORE | MB_ICONWARNING | MB_DEFBUTTON2);
 
 		if (iResult == IDABORT)
@@ -541,7 +547,7 @@ retry_start:
 		}
 		else if (iResult == IDRETRY)
 		{
-			m_pUSRP->Stop();
+ 			m_pUSRP->Stop();
 
 			if (CAN_CAST(m_pUSRP, RemoteUSRP))
 				iResult = IDYES;
@@ -626,12 +632,14 @@ void ExtIO_USRP::Stop()
 
 	m_pDialog->_Log(_T("Stopping..."));
 
+	SetEvent(m_hEvent);
+
 	m_pUSRP->Stop();	// Wait for this to complete?
 	//Sleep(500);
 
 	if (m_hWorker)
 	{
-		SetEvent(m_hEvent);
+		//SetEvent(m_hEvent);
 
 		AfxTrace(_T("Waiting for termination of thread 0x%x...\n"), m_dwWorkerID);
 
@@ -641,6 +649,8 @@ void ExtIO_USRP::Stop()
 		CloseHandle(m_hWorker);
 		m_hWorker = NULL;
 	}
+
+	ResetEvent(m_hEvent);
 
 	m_dwWorkerID = 0;
 

@@ -42,7 +42,7 @@ USRPSkeleton::USRPSkeleton()
 {
 	ZERO_MEMORY(m_tuneResult);
 	ZERO_MEMORY(m_metadata);
-	//m_gainRange = uhd::gain_range_t(0.0, 0.0, 0.0);
+	m_gainRange = uhd::gain_range_t(0.0, 0.0/*, 0.0*/);
 
 	ResetStats();
 }
