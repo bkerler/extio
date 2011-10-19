@@ -52,6 +52,9 @@ public:
 	void _SetGain(double dGain, bool bFromSlider = false);
 	void _ToggleRunning(bool bRunning);
 	void _Log(const CString& str);
+	int _LoadCombo(CComboBox& cntrl, LPCTSTR strName, bool bSelectFirst = false);
+	void _StoreCombo(CComboBox& cntrl, LPCTSTR strName);
+	void _UpdateCombo(CComboBox& cntrl/*, CString& str*/);
 //public:
 	//void myFilterToolTipMessage(MSG* pMsg);
 	//virtual BOOL PreTranslateMessage(MSG* pMsg);
@@ -62,6 +65,7 @@ public:
 	virtual BOOL OnInitDialog();
 public:
 	CSliderCtrl m_cntrlSlider_Gain;
+	CComboBox m_cntrlCombo_DeviceHint;
 public:
 	afx_msg void OnDestroy();
 	afx_msg void OnHScroll(UINT nSBCode, UINT nPos, CScrollBar* pScrollBar);

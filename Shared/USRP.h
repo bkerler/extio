@@ -308,7 +308,7 @@ public:
 	HANDLE m_hDataEvent;
 	HANDLE m_hQuitEvent;
 	HANDLE m_hPacketEvent;
-	HANDLE m_hStopEvent, m_bAbortEvent;
+	HANDLE m_hStopEvent, m_hAbortEvent;
 	SOCKET m_hDataSocket;
 	LPBYTE m_pNetworkBuffer;
 	UINT m_nItemSize;	// Payload size
@@ -323,6 +323,8 @@ public:
 	UINT m_nBufferOverrun;
 	UINT m_nLastSkip;
 	HANDLE m_hAbortPump;
+	UINT64 m_nPacketsReceived;
+	UINT64 m_nPreBufferCount;
 public:
 	DWORD ReceiveThread();
 public:

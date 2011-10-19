@@ -40,6 +40,7 @@ public:
 	CsocketClient* m_pClient;
 	IUSRP* m_pUSRP;
 	//CAsyncSocket* m_pDataStream;
+	int m_iDefaultPort;
 	SOCKET m_hDataSocket;
 	HANDLE m_hEvent;
 	DWORD m_dwWorkerID;

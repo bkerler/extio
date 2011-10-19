@@ -50,11 +50,13 @@
 #include <TehBase\TehUtils.h>
 #include <TehBase\TehRefCounter.h>
 
-#include <uhd/usrp/single_usrp.hpp>
-#include <usrp/libusrp.h>
-
 #include <iostream>
 #include <XmlRpc.h>
 
 #include <complex>
 #include <afxwin.h>
+
+#include <atlbase.h>
+
+#include <uhd/usrp/single_usrp.hpp>
+#include <usrp/libusrp.h>

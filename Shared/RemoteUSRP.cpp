@@ -14,7 +14,7 @@ RemoteUSRP::RemoteUSRP(CRuntimeClass* pSocket /*= NULL*/)
 	, m_hQuitEvent(NULL)
 	, m_hPacketEvent(NULL)
 	, m_hStopEvent(NULL)
-	, m_bAbortEvent(NULL)
+	, m_hAbortEvent(NULL)
 	, m_hDataSocket(INVALID_SOCKET)
 	, m_pNetworkBuffer(NULL)
 	, m_nNetworkBufferSize(256)
@@ -29,6 +29,8 @@ RemoteUSRP::RemoteUSRP(CRuntimeClass* pSocket /*= NULL*/)
 	, m_nLastSkip(0)
 	, m_pSocketClass(pSocket)
 	, m_hAbortPump(NULL)
+	, m_nPacketsReceived(0)
+	, m_nPreBufferCount(0)
 {
 	ZERO_MEMORY(m_wsaOverlapped);
 
@@ -52,8 +54,8 @@ RemoteUSRP::~RemoteUSRP()
 	if (m_hStopEvent)
 		CloseHandle(m_hStopEvent);
 
-	if (m_bAbortEvent)
-		CloseHandle(m_bAbortEvent);
+	if (m_hAbortEvent)
+		CloseHandle(m_hAbortEvent);
 
 	SAFE_DELETE_ARRAY(m_pNetworkBuffer);
 
@@ -70,7 +72,7 @@ void RemoteUSRP::Reset()
 {
 	ResetEvent(m_hPacketEvent);
 	ResetEvent(m_hStopEvent);
-	ResetEvent(m_bAbortEvent);
+	ResetEvent(m_hAbortEvent);
 
 	{
 		CSingleLock lock(&m_cs, TRUE);
@@ -78,6 +80,7 @@ void RemoteUSRP::Reset()
 		m_nNetworkBufferStart = m_nNetworkBufferItems = 0;
 		m_usCounter = 0;
 		m_nNetworkOverrun = m_nBufferOverrun = m_nLastSkip = 0;
+		m_nPacketsReceived = 0;
 	}
 }
 
@@ -265,13 +268,13 @@ bool RemoteUSRP::Connect(LPCTSTR strAddress, LPCTSTR strHint /*= NULL*/)
 	else
 		ResetEvent(m_hStopEvent);
 
-	if (m_bAbortEvent == NULL)
+	if (m_hAbortEvent == NULL)
 	{
-		if ((m_bAbortEvent = CreateEvent(NULL, FALSE, FALSE, NULL)) == NULL)
+		if ((m_hAbortEvent = CreateEvent(NULL, FALSE, FALSE, NULL)) == NULL)
 			return false;
 	}
 	else
-		ResetEvent(m_bAbortEvent);
+		ResetEvent(m_hAbortEvent);
 
 	Destroy();
 
@@ -667,7 +670,7 @@ void RemoteUSRP::Stop(bool bAbort /*= false*/)
 		//}
 	}
 
-	SetEvent((bAbort ? m_bAbortEvent : m_hStopEvent));
+	SetEvent((bAbort ? m_hAbortEvent : m_hStopEvent));
 
 	{
 		CSingleLock lock(&m_cs, TRUE);
@@ -687,8 +690,8 @@ int RemoteUSRP::ReadPacket()
 	{
 		lock.Unlock();
 
-		HANDLE hHandles[] = { m_hStopEvent, m_bAbortEvent, m_hPacketEvent };
-	
+		HANDLE hHandles[] = { m_hStopEvent, m_hAbortEvent, m_hPacketEvent };
+//AfxTrace(_T("RemoteWait\n"));
 		DWORD dw = WaitForMultipleObjects(sizeof(hHandles)/sizeof(hHandles[0]), hHandles, FALSE, INFINITE);
 		if (dw == (WAIT_OBJECT_0 + 0))
 		{
@@ -728,7 +731,7 @@ int RemoteUSRP::ReadPacket()
 
 	memcpy(m_pBuffer, pPacket->data, m_nItemSize);
 
-	++m_nSamplesReceived;
+	m_nSamplesReceived += m_recv_samples_per_packet;
 
 	if (pPacket->flags & BF_HARDWARE_OVERRUN)
 	{
@@ -827,7 +830,7 @@ void RemoteUSRP::OnCommand(CsocketClient* pSocket, const CString& str)
 		else
 		{
 			CStringArray array;
-			if (Teh::Utils::Tokenise(strData, array, _T('|')) != 7)
+			if (Teh::Utils::Tokenise(strData, array, _T('|')) < 6)
 			{
 				m_strName.Empty();
 			}
@@ -842,11 +845,16 @@ void RemoteUSRP::OnCommand(CsocketClient* pSocket, const CString& str)
 				m_recv_samples_per_packet = _tstoi(array[5]);
 				m_nItemSize = m_recv_samples_per_packet * 2 * sizeof(short);
 
-				CStringArray arrayAnt;
-				Teh::Utils::Tokenise(array[6], arrayAnt, _T(','));
-				m_arrayAntennas.clear();
-				for (INT_PTR i = 0; i < arrayAnt.GetCount(); ++i)
-					m_arrayAntennas.push_back((LPCSTR)CStringA(arrayAnt[i]));
+				if (array.GetCount() >= 7)
+				{
+					CStringArray arrayAnt;
+					Teh::Utils::Tokenise(array[6], arrayAnt, _T(','));
+					m_arrayAntennas.clear();
+					for (INT_PTR i = 0; i < arrayAnt.GetCount(); ++i)
+						m_arrayAntennas.push_back((LPCSTR)CStringA(arrayAnt[i]));
+				}
+				else
+					m_arrayAntennas.clear();
 			}
 		}
 	}
@@ -1047,8 +1055,10 @@ DWORD RemoteUSRP::ReceiveThread()
 			}
 
 			++m_usCounter;
-
-			SetEvent(m_hPacketEvent);
+			++m_nPacketsReceived;
+//AfxTrace(_T("Received: %I64lu\n"), m_nPacketsReceived);
+			if (m_nPacketsReceived > m_nPreBufferCount)
+				SetEvent(m_hPacketEvent);
 		}
 
 		// FIXME: Might have to check event if it never gets a chance to start overlapped I/O

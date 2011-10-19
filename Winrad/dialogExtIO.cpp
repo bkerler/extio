@@ -67,6 +67,7 @@ void CdialogExtIO::DoDataExchange(CDataExchange* pDX)
 	DDX_Control(pDX, IDC_COMBO_SAMPLE_RATE, m_cntrlCombo_SampleRate);
 	DDX_Control(pDX, IDC_COMBO_ANTENNA, m_cntrlCombo_Antenna);
 	DDX_Control(pDX, IDC_LIST_LOG, m_cntrlList_Log);
+	DDX_Control(pDX, IDC_COMBO_DEVICE_HINT, m_cntrlCombo_DeviceHint);
 }
 
 BEGIN_MESSAGE_MAP(CdialogExtIO, CDialog)
@@ -237,6 +238,12 @@ BOOL CdialogExtIO::OnInitDialog()
 	//m_cntrlSlider_Gain.SetRange(0, 100);
 
 	SetDlgItemText(IDC_EDIT_DEVICE_HINT, m_pUSRP->GetDevice());
+	_LoadCombo(m_cntrlCombo_DeviceHint, _T("Device hints"), true);
+	if (m_pUSRP->GetDevice().IsEmpty() == false)
+	{
+		m_cntrlCombo_DeviceHint.SetWindowText(m_pUSRP->GetDevice());
+		_UpdateCombo(m_cntrlCombo_DeviceHint);
+	}
 
 	SetDlgItemText(IDC_EDIT_REMOTE_ADDRESS, m_pUSRP->GetRemoteAddress());
 	//if (m_pUSRP->GetRemoteAddress().IsEmpty() == false)
@@ -414,7 +421,9 @@ void CdialogExtIO::_CreateUI()
 
 	////////////////////////////////////////
 
-	double dSteps = (pUSRP->GetGainRange().stop() - pUSRP->GetGainRange().start()) / pUSRP->GetGainRange().step();
+	double dSteps = 0;
+	if (pUSRP->GetGainRange().step() > 0)
+		dSteps = (pUSRP->GetGainRange().stop() - pUSRP->GetGainRange().start()) / pUSRP->GetGainRange().step();
 	int iSteps = ((int)dSteps);
 	AfxTrace(_T("Gain steps: %i\n"), iSteps);
 
@@ -493,7 +502,9 @@ void CdialogExtIO::_UpdateUI(DWORD dwFlags /*= UF_ALL*/)
 	if ((pUSRP) && (dwFlags & UF_GAIN_SLIDER))
 	{
 		//double dGain = (100.0 * (m_pUSRP->GetGain() - pUSRP->GetGainRange().start())) / (pUSRP->GetGainRange().stop() - pUSRP->GetGainRange().start());
-		double dGain = (m_pUSRP->GetGain() - pUSRP->GetGainRange().start()) / (pUSRP->GetGainRange().step());
+		double dGain = 0.0;
+		if (pUSRP->GetGainRange().step() > 0)
+			dGain = (m_pUSRP->GetGain() - pUSRP->GetGainRange().start()) / (pUSRP->GetGainRange().step());
 
 		m_cntrlSlider_Gain.SetPos(CLAMP(m_cntrlSlider_Gain.GetRangeMin(), (int)dGain, m_cntrlSlider_Gain.GetRangeMax()));
 	}
@@ -592,6 +603,8 @@ void CdialogExtIO::OnDestroy()
 	GetWindowRect(&rectWindow);
 	SAVE_BINARY(rectWindow);
 
+	_StoreCombo(m_cntrlCombo_DeviceHint, _T("Device hints"));
+
 	CDialog::OnDestroy();
 }
 
@@ -668,9 +681,11 @@ void CdialogExtIO::OnBnClickedButtonCreateDevice()
 	m_pUSRP->Close();
 
 	CString str;
-	GetDlgItemText(IDC_EDIT_DEVICE_HINT, str);
+	//GetDlgItemText(IDC_EDIT_DEVICE_HINT, str);
+	m_cntrlCombo_DeviceHint.GetWindowText(str);
 
-	m_pUSRP->Open(str);
+	if (m_pUSRP->Open(str))
+		_UpdateCombo(m_cntrlCombo_DeviceHint);
 
 	GetDlgItem(IDC_BUTTON_CREATE_DEVICE)->EnableWindow();
 }
@@ -1197,13 +1212,112 @@ void CdialogExtIO::OnSysCommand(UINT nID, LPARAM lParam)
 	}
 }
 
-void CAboutDlg::OnBnClickedButtonWww()
+int CdialogExtIO::_LoadCombo(CComboBox& cntrl, LPCTSTR strName, bool bSelectFirst /*= false*/)
 {
-	ShellExecute(NULL, _T("open"), _T("http://spench.net/r/ExtIO_USRP"), NULL, NULL, SW_SHOW);
+	HKEY hKey = AfxGetApp()->GetSectionKey(_T("Settings"));
+	if (hKey == NULL)
+		return 0;
+
+	CRegKey key(hKey);
+
+	const ULONG ulLength = 16384;
+
+	ULONG ul = ulLength;
+	TCHAR ch[ulLength];
+	LPTSTR pData = ch;
+	if (key.QueryMultiStringValue(strName, pData, &ul) == ERROR_SUCCESS)
+	{
+		bool bSkipLast = false;
+		if (ul == ulLength)
+		{
+			pData[ul - 2] = _T('\0');
+			pData[ul - 1] = _T('\0');
+			bSkipLast = true;
+		}
+
+		LPTSTR pTok = pData;
+
+		int iLast = -1;
+		while ((*pTok))
+		{
+			CString str(pTok);
+			iLast = cntrl.AddString(str);
+
+			while ((*++pTok));
+
+			++pTok;
+		}
+
+		if (bSkipLast && (iLast > -1))
+			cntrl.DeleteString(iLast);
+	}
+
+	if ((bSelectFirst) && (cntrl.GetCount() > 0))
+		cntrl.SetCurSel(0);
+
+	return cntrl.GetCount();
+}
+
+void CdialogExtIO::_StoreCombo(CComboBox& cntrl, LPCTSTR strName)
+{
+	HKEY hKey = AfxGetApp()->GetSectionKey(_T("Settings"));
+	if (hKey == NULL)
+		return;
+
+	CRegKey key(hKey);
+
+	const ULONG ulLength = 16384;
+
+	ULONG ul = (ulLength - 1);
+	TCHAR ch[ulLength];
+	ch[0] = _T('\0');
+	LPTSTR p = ch;
+
+	for (int i = 0; i < cntrl.GetCount(); i++)
+	{
+		CString str;
+		cntrl.GetLBText(i, str);
+
+		_tcscat_s(p, ul, str);
+
+		int iLength = (str.GetLength() + 1);
+		ul -= iLength;
+		p += iLength;
+
+		p[0] = _T('\0');
+	}
+
+	key.SetMultiStringValue(strName, ch);
+}
+
+void CdialogExtIO::_UpdateCombo(CComboBox& cntrl/*, CString& str*/)
+{
+	CString strCurrent;
+	cntrl.GetWindowText(strCurrent);
+	if (strCurrent.IsEmpty())
+		return;
+
+	int iIndex = cntrl.FindStringExact(0, strCurrent);
+	if (iIndex == -1)
+	{
+		cntrl.InsertString(0, strCurrent);
+		cntrl.SetCurSel(0);	// This is necessary, otherwise 'UpdateData' will empty string of edit control
+	}
+	else if (iIndex > 0)
+	{
+		cntrl.DeleteString(iIndex);
+		cntrl.InsertString(0, strCurrent);
+		cntrl.SetCurSel(0);	// This is necessary, otherwise 'UpdateData' will empty string of edit control
+	}
 }
 
 void CdialogExtIO::OnBnClickedButtonAbout()
 {
 	CAboutDlg dlgAbout;
 	dlgAbout.DoModal();
+}
+
+void CAboutDlg::OnBnClickedButtonWww()
+{
+	ShellExecute(NULL, _T("open"), _T("http://spench.net/r/ExtIO_USRP"), NULL, NULL, SW_SHOW);
 }
