@@ -153,6 +153,7 @@ BEGIN
     GROUPBOX        "",IDC_STATIC,6,258,330,30
     PUSHBUTTON      "About",IDC_BUTTON_ABOUT,342,270,50,14
     COMBOBOX        IDC_COMBO_DEVICE_HINT,54,24,78,54,CBS_DROPDOWN | CBS_AUTOHSCROLL | WS_VSCROLL | WS_TABSTOP
+    CONTROL         "Encapsulate in BorIP",IDC_CHECK_RELAY_AS_BORIP,"Button",BS_AUTOCHECKBOX | WS_TABSTOP,97,258,81,10
 END
 
 IDD_DIALOG_WAIT DIALOGEX 0, 0, 214, 52
@@ -261,6 +262,8 @@ BEGIN
                             "Set port on relay destination to which XML-RPC IF tuning commands will be sent"
     IDC_BUTTON_SET_UDP_SOURCE_DESTINATION 
                             "Set IP address to where raw samples will be sent via UDP. Format: IP[:port]"
+    IDC_CHECK_RELAY_AS_BORIP 
+                            "Encapsulate data in BorIP packets, instead of sending raw"
 END
 
 #endif    // English (Australia) resources

@@ -34,6 +34,8 @@ ExtIO_USRP::ExtIO_USRP()
 	, m_lOffset(0)
 	, m_bUseOffset(FALSE)
 	, m_bSkipFailedXMLRPC(false)
+	, m_bRelayAsBorIP(FALSE)
+	, m_nMemoryUSRPSamplesPerPacket(4096)
 {
 	ZERO_MEMORY(m_lIFLimits);
 
@@ -60,6 +62,8 @@ bool ExtIO_USRP::Init()
 	LOAD_INT(m_bEnableXMLRPCIF);
 	LOAD_INT(m_iXMLRPCPort);
 	LOAD_STRING(m_strUDPRelayAddress);
+	LOAD_INT(m_bRelayAsBorIP);
+	LOAD_INT(m_nMemoryUSRPSamplesPerPacket);
 
 	if (m_hEvent == NULL)
 	{
@@ -123,6 +127,8 @@ void ExtIO_USRP::Destroy()
 	SAVE_INT(m_bEnableXMLRPCIF);
 	SAVE_INT(m_iXMLRPCPort);
 	SAVE_STRING(m_strUDPRelayAddress);
+	SAVE_INT(m_bRelayAsBorIP);
+	SAVE_INT(m_nMemoryUSRPSamplesPerPacket);
 
 	/////////////////////////////////////
 
@@ -164,7 +170,7 @@ void ExtIO_USRP::Playback()
 
 	m_pDialog->_Log(_T("Entering playback mode..."));
 
-	m_pUSRP = new MemoryUSRP;
+	m_pUSRP = new MemoryUSRP(m_nMemoryUSRPSamplesPerPacket);
 
 	m_strSerial.Empty();
 
@@ -429,6 +435,8 @@ void ExtIO_USRP::SetTunedFrequency(long lFreq)
 		double dOffset = m_pUSRP->GetFreq() - (double)lFreq;
 
 		AfxTrace(_T("Tuning offset = %f\n"), dOffset);
+
+		CSingleLock cs(&m_csXMLRPCClient, TRUE);
 
 		if (m_pXMLRPCClient)
 		{
@@ -812,6 +820,13 @@ void ExtIO_USRP::DisableUDPRelay(bool bKeepSetting /*= false*/)
 		m_bEnableUDPRelay = FALSE;
 }
 
+void ExtIO_USRP::RelayAsBorIP(bool bEnable /*= true*/)
+{
+	CSingleLock lockRelay(&m_csRelay, TRUE);
+
+	m_bRelayAsBorIP = B2I(bEnable);
+}
+
 DWORD ExtIO_USRP::Worker()
 {
 	WSABUF wsabuf;
@@ -823,6 +838,12 @@ DWORD ExtIO_USRP::Worker()
 		AfxTrace(_T("Failed to create data sent wait handle\n"));
 		return -1;
 	}
+
+	UINT nPacketPayloadSize = m_pUSRP->GetSamplesPerPacket() * 2 * sizeof(short);
+	LPBYTE pPacketData = new BYTE[offsetof(BOR_PACKET, data) + nPacketPayloadSize];
+	PBOR_PACKET pPacket = (PBOR_PACKET)pPacketData;
+	USHORT usIndex = 0;
+	bool bFirstPacket = true;
 
 	////////////////////////////
 
@@ -879,8 +900,34 @@ DWORD ExtIO_USRP::Worker()
 
 		if ((m_hDataSocket != INVALID_SOCKET) && (m_addrDest.sin_addr.S_un.S_addr != 0))
 		{
-			wsabuf.buf = (char*)m_pUSRP->GetBuffer();
-			wsabuf.len = iSamplesRead * 2 * sizeof(short);
+			if (m_bRelayAsBorIP)
+			{
+				pPacket->flags = 0;
+				pPacket->notification = 0;
+
+				if (m_pUSRP->GetMetadata().error_code == uhd::rx_metadata_t::ERROR_CODE_OVERFLOW)
+					pPacket->flags |= BF_HARDWARE_OVERRUN;
+
+				if (bFirstPacket)
+				{
+					pPacket->flags |= BF_STREAM_START;
+					bFirstPacket = false;
+				}
+
+				pPacket->idx = usIndex++;
+
+				memcpy(pPacket->data, m_pUSRP->GetBuffer(), nPacketPayloadSize);
+
+				wsabuf.len = offsetof(BOR_PACKET, data) + nPacketPayloadSize;
+				wsabuf.buf = (char*)pPacket;
+			}
+			else
+			{
+				wsabuf.len = iSamplesRead * 2 * sizeof(short);
+				wsabuf.buf = (char*)m_pUSRP->GetBuffer();
+
+				bFirstPacket = true;	// Just in case switching back-and-forth
+			}
 
 			ZERO_MEMORY(wsaoverlapped);
 			wsaoverlapped.hEvent = hDataSent;
@@ -950,6 +997,8 @@ DWORD ExtIO_USRP::Worker()
 
 	if (hDataSent)
 		CloseHandle(hDataSent);
+
+	delete [] pPacketData;
 
 	return 0;
 }

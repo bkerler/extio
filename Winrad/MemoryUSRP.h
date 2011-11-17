@@ -5,7 +5,7 @@
 class MemoryUSRP : public USRPSkeleton
 {
 public:
-	MemoryUSRP();
+	MemoryUSRP(size_t nSamplesPerPacket = 0);
 	virtual ~MemoryUSRP();
 public:
 	public:
@@ -31,6 +31,8 @@ public:	// USRP
 	double SetSampleRate(double dSampleRate);
 	std::vector<std::string> GetAntennas() const;
 	int ReadPacket();
+public:
+	void SetSamplesPerPacket(size_t nSamplesPerPacket);
 public:
 	//DWORD ReceiveThread();
 public:
