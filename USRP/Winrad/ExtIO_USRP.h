@@ -58,6 +58,7 @@ private:
 	UINT m_nMaxPacketSize;
 	SOCKADDR_IN m_addrDest;
 	CCriticalSection m_csRelay;
+	CCriticalSection m_csXMLRPCClient;
 	XmlRpc::XmlRpcClient* m_pXMLRPCClient;
 	int m_iXMLRPCPort;
 	BOOL m_bEnableUDPRelay;
@@ -65,6 +66,8 @@ private:
 	CString m_strUDPRelayAddress;
 	long m_lOffset;
 	BOOL m_bUseOffset;
+	BOOL m_bRelayAsBorIP;
+	int m_nMemoryUSRPSamplesPerPacket;
 public:
 	bool Init();
 	void Destroy();
@@ -90,6 +93,7 @@ public:
 	bool EnableXMLRPCIF(int iPort = 0);
 	void DisableXMLRPCIF(bool bKeepSetting = false);
 	bool SetXMLRPCIFPort(int iPort);
+	void RelayAsBorIP(bool bEnable = true);
 public:
 	inline CdialogExtIO* GetDialog()
 	{ return m_pDialog; }
@@ -117,6 +121,8 @@ public:
 	{ return m_strUDPRelayAddress; }
 	inline int GetXMLRPCIFPort() const
 	{ return m_iXMLRPCPort; }
+	inline bool IsRelayingAsBorIP() const
+	{ return I2B(m_bRelayAsBorIP); }
 	inline bool IsOffset() const
 	{ return I2B(m_bUseOffset); }
 	inline void UseOffset(bool bUse = true)

@@ -882,20 +882,23 @@ DWORD Server::Worker()
 			AfxMessageBox(_T("Non-zero meta data: ") + Teh::Utils::ToString(m_pUSRP->GetMetadata().error_code));
 		}
 
+		pPacket->notification = 0;
 		pPacket->idx = usIndex++;
 		//pPacket->sub_idx = 0;
-
-		int iLength = /*sizeof(BOR_PACKET)*/(m_bHeaderless ? 0 : offsetof(BOR_PACKET, data));
-		int iPayloadLength = m_pUSRP->GetSamplesPerPacket() * 2 * sizeof(short);
-		iLength += iPayloadLength;
-
-		memcpy((m_bHeaderless ? p : pPacket->data), m_pUSRP->GetBuffer(), iPayloadLength);
 
 		if (bFirstPacket)
 		{
 			pPacket->flags |= BF_STREAM_START;
 			bFirstPacket = false;
 		}
+
+		// All packet manipulation must come before copying of payload in case of headerless transmission!
+
+		int iLength = (m_bHeaderless ? 0 : offsetof(BOR_PACKET, data));
+		int iPayloadLength = m_pUSRP->GetSamplesPerPacket() * 2 * sizeof(short);
+		iLength += iPayloadLength;
+
+		memcpy((m_bHeaderless ? p : pPacket->data), m_pUSRP->GetBuffer(), iPayloadLength);
 
 		//////////////////////////////////////////////
 

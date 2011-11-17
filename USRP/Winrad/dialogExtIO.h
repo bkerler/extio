@@ -89,4 +89,5 @@ public:
 	afx_msg void OnBnClickedButtonSetXmlrpcIfPort();
 	afx_msg void OnSysCommand(UINT nID, LPARAM lParam);
 	afx_msg void OnBnClickedButtonAbout();
+	afx_msg void OnBnClickedCheckRelayAsBorip();
 };

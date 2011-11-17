@@ -21,7 +21,6 @@
 #define IDC_BUTTON_CREATE_DEVICE        3008
 #define IDC_EDIT_GAIN_RANGE             3009
 #define IDC_STATIC_LINK                 3010
-#define IDC_COMBO_ANTENNA2              3010
 #define IDC_COMBO_DEVICE_HINT           3010
 #define IDC_EDIT_GAIN_VALUE             3011
 #define IDC_EDIT_TUNE_INFO              3012
@@ -44,6 +43,8 @@
 #define IDC_BUTTON2                     3024
 #define IDC_BUTTON_SET_XMLRPC_IF_PORT   3024
 #define IDC_BUTTON_SET_UDP_SOURCE_DESTINATION 3025
+#define IDC_CHECK_RELAY_TO_UDP_SOURCE2  3026
+#define IDC_CHECK_RELAY_AS_BORIP        3026
 
 // Next default values for new objects
 // 

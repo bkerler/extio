@@ -93,6 +93,7 @@ BEGIN_MESSAGE_MAP(CdialogExtIO, CDialog)
 	ON_BN_CLICKED(IDC_BUTTON_SET_XMLRPC_IF_PORT, &CdialogExtIO::OnBnClickedButtonSetXmlrpcIfPort)
 	ON_WM_SYSCOMMAND()
 	ON_BN_CLICKED(IDC_BUTTON_ABOUT, &CdialogExtIO::OnBnClickedButtonAbout)
+	ON_BN_CLICKED(IDC_CHECK_RELAY_AS_BORIP, &CdialogExtIO::OnBnClickedCheckRelayAsBorip)
 END_MESSAGE_MAP()
 
 // CdialogExtIO message handlers
@@ -270,7 +271,8 @@ BOOL CdialogExtIO::OnInitDialog()
 		IDC_BUTTON_SET_UDP_SOURCE_DESTINATION,
 		IDC_BUTTON_SET_XMLRPC_IF_PORT,
 		IDC_EDIT_UDP_SOURCE_DESTINATION,
-		IDC_EDIT_XMLRPC_IF_PORT
+		IDC_EDIT_XMLRPC_IF_PORT,
+		IDC_CHECK_RELAY_AS_BORIP
 	};
 
 	for (int i = 0; i < (sizeof(nIDs) / sizeof(nIDs[0])); ++i)
@@ -554,6 +556,7 @@ void CdialogExtIO::_UpdateUI(DWORD dwFlags /*= UF_ALL*/)
 	{
 		CheckDlgButton(IDC_CHECK_RELAY_TO_UDP_SOURCE, (m_pUSRP->IsUDPRelayEnabled() ? BST_CHECKED : BST_UNCHECKED));
 		CheckDlgButton(IDC_CHECK_ENABLE_RELAY_XMLRPC, (m_pUSRP->IsXMLRPCIFEnabled() ? BST_CHECKED : BST_UNCHECKED));
+		CheckDlgButton(IDC_CHECK_RELAY_AS_BORIP, (m_pUSRP->IsRelayingAsBorIP() ? BST_CHECKED : BST_UNCHECKED));
 
 		SetDlgItemText(IDC_EDIT_UDP_SOURCE_DESTINATION, m_pUSRP->GetUDPRelayAddress());
 		SetDlgItemInt(IDC_EDIT_XMLRPC_IF_PORT, m_pUSRP->GetXMLRPCIFPort());
@@ -1320,4 +1323,21 @@ void CdialogExtIO::OnBnClickedButtonAbout()
 void CAboutDlg::OnBnClickedButtonWww()
 {
 	ShellExecute(NULL, _T("open"), _T("http://spench.net/r/ExtIO_USRP"), NULL, NULL, SW_SHOW);
+}
+
+void CdialogExtIO::OnBnClickedCheckRelayAsBorip()
+{
+	if (m_pUSRP == NULL)
+		return;
+
+	if (IsDlgButtonChecked(IDC_CHECK_RELAY_AS_BORIP))
+	{
+		m_pUSRP->RelayAsBorIP();
+		_Log(_T("Relaying using BorIP"));
+	}
+	else
+	{
+		m_pUSRP->RelayAsBorIP(false);
+		_Log(_T("Relaying raw"));
+	}
 }

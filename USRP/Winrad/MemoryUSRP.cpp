@@ -1,7 +1,7 @@
 #include "StdAfx.h"
 #include "MemoryUSRP.h"
 
-MemoryUSRP::MemoryUSRP()
+MemoryUSRP::MemoryUSRP(size_t nSamplesPerPacket /*= 0*/)
 	: m_hThread(NULL)
 	, m_dwThreadID(0)
 	, m_hDataEvent(NULL)
@@ -11,10 +11,7 @@ MemoryUSRP::MemoryUSRP()
 	, m_nBufferStart(0)
 	, m_nBufferLength(0)
 {
-	m_recv_samples_per_packet = 4096;
-	m_mem.AllocateMemory(m_recv_samples_per_packet * 2 * sizeof(short));
-
-	m_memBuffer.AllocateMemory(m_mem.GetMemoryLength() * 16);
+	SetSamplesPerPacket((nSamplesPerPacket ? nSamplesPerPacket : 4096));
 
 	m_gainRange = uhd::gain_range_t(0, 1, 1);
 }
@@ -22,6 +19,14 @@ MemoryUSRP::MemoryUSRP()
 MemoryUSRP::~MemoryUSRP()
 {
 	Stop();
+}
+
+void MemoryUSRP::SetSamplesPerPacket(size_t nSamplesPerPacket)
+{
+	m_recv_samples_per_packet = nSamplesPerPacket;
+	m_mem.AllocateMemory(m_recv_samples_per_packet * 2 * sizeof(short));
+
+	m_memBuffer.AllocateMemory(m_mem.GetMemoryLength() * 16);
 }
 
 bool MemoryUSRP::Create(LPCTSTR strHint /*= NULL*/)
