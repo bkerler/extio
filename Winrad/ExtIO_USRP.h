@@ -44,6 +44,9 @@ private:
 	CdialogExtIO* m_pDialog;
 	CCriticalSection m_cs;
 	HANDLE m_hWorker;
+	HANDLE m_hWorkedFinished;
+	bool m_bWorkerActive;
+	UINT m_nAlignedSamplesPerPacket;
 	//CString m_strAntenna;
 	//double m_dGain;
 	long m_lIFLimits[IF_LIMIT_COUNT];
@@ -68,6 +71,7 @@ private:
 	BOOL m_bUseOffset;
 	BOOL m_bRelayAsBorIP;
 	int m_nMemoryUSRPSamplesPerPacket;
+	BOOL m_bTestMode;
 public:
 	bool Init();
 	void Destroy();

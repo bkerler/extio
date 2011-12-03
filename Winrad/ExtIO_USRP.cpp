@@ -5,6 +5,7 @@
 #include "socketClientWaitable.h"
 #include "BorIP.h"
 #include "MemoryUSRP.h"
+#include "FUNcubeDongle.h"
 
 #define REGISTRY_PROFILE_SECTION	m_strSerial // _T("USRP ExtIO")
 #include <TehBase\TehAfxRegistryProfile.h>
@@ -36,6 +37,10 @@ ExtIO_USRP::ExtIO_USRP()
 	, m_bSkipFailedXMLRPC(false)
 	, m_bRelayAsBorIP(FALSE)
 	, m_nMemoryUSRPSamplesPerPacket(4096)
+	, m_bWorkerActive(false)
+	, m_hWorkedFinished(NULL)
+	, m_nAlignedSamplesPerPacket(0)
+	, m_bTestMode(FALSE)
 {
 	ZERO_MEMORY(m_lIFLimits);
 
@@ -64,11 +69,19 @@ bool ExtIO_USRP::Init()
 	LOAD_STRING(m_strUDPRelayAddress);
 	LOAD_INT(m_bRelayAsBorIP);
 	LOAD_INT(m_nMemoryUSRPSamplesPerPacket);
+	LOAD_INT(m_bTestMode);
 
 	if (m_hEvent == NULL)
 	{
 		m_hEvent = CreateEvent(NULL, FALSE, FALSE, NULL);
 		if (m_hEvent == NULL)
+			return false;
+	}
+
+	if (m_hWorkedFinished == NULL)
+	{
+		m_hWorkedFinished = CreateEvent(NULL, FALSE, FALSE, NULL);
+		if (m_hWorkedFinished == NULL)
 			return false;
 	}
 
@@ -146,6 +159,12 @@ void ExtIO_USRP::Destroy()
 		CloseHandle(m_hEvent);
 		m_hEvent = NULL;
 	}
+
+	if (m_hWorkedFinished != NULL)
+	{
+		CloseHandle(m_hWorkedFinished);
+		m_hWorkedFinished = NULL;
+	}
 }
 
 bool ExtIO_USRP::TryOpen()
@@ -179,7 +198,7 @@ void ExtIO_USRP::Playback()
 
 bool ExtIO_USRP::Open(LPCTSTR strHint /*= NULL*/, LPCTSTR strAddress /*= NULL*/)
 {
-	if (m_hEvent == NULL)
+	if ((m_hEvent == NULL) || (m_hWorkedFinished == NULL))
 		return false;
 
 	if (m_pUSRP)
@@ -206,15 +225,27 @@ bool ExtIO_USRP::Open(LPCTSTR strHint /*= NULL*/, LPCTSTR strAddress /*= NULL*/)
 	if (m_bRemoteDevice == FALSE)
 	{
 		int iIndex = -1;
+		bool bFCD = false;
 		CStringArray array;
 		if (Teh::Utils::Tokenise(m_strDevice, array, _T(' ')))
 		{
-			iIndex = _tstoi(array[0]);
-			if ((iIndex == 0) && (array[0] != _T("0")))
-				iIndex = -1;
+			if (array[0].CompareNoCase(_T("fcd")) == 0)
+				bFCD = true;
+			else
+			{
+				iIndex = _tstoi(array[0]);
+				if ((iIndex == 0) && (array[0] != _T("0")))
+					iIndex = -1;
+			}
 		}
 
-		if (iIndex > -1)
+		if (bFCD)
+		{
+			m_pDialog->_Log(_T("Creating FUNcube Dongle device..."));
+
+			m_pUSRP = new FUNcubeDongle();
+		}
+		else if (iIndex > -1)
 		{
 			m_pDialog->_Log(_T("Creating legacy device..."));
 
@@ -282,11 +313,18 @@ bool ExtIO_USRP::Open(LPCTSTR strHint /*= NULL*/, LPCTSTR strAddress /*= NULL*/)
 
 	/////////////////////////////////////
 
-	m_strSerial = m_pUSRP->GetName();
-	if (m_strSerial.IsEmpty())
-		m_strSerial = _T("(no name)");
+	CString strName = m_pUSRP->GetName();
 
-	m_pDialog->_Log(_T("Loading settings for: ") + m_strSerial);
+	m_strSerial = m_pUSRP->GetSerial();
+	if (m_strSerial.IsEmpty())
+		m_strSerial = strName;
+
+	if (strName.IsEmpty())
+		strName = _T("(no name)");
+	if (m_strSerial.IsEmpty())
+		m_strSerial = strName;
+
+	m_pDialog->_Log(_T("Loading settings for: ") + strName + _T(" (serial: ") + m_strSerial + _T(")"));
 
 	LOAD_INT(m_dFreq);
 	LOAD_FLOAT(m_dGain);
@@ -602,6 +640,14 @@ retry_start:
 		return 0;
 	}
 
+	ResetEvent(m_hWorkedFinished);
+
+	// Calculate before starting thread
+	m_nAlignedSamplesPerPacket = m_pUSRP->GetSamplesPerPacket();
+	ASSERT(m_nAlignedSamplesPerPacket > 0);
+	m_nAlignedSamplesPerPacket -= (m_nAlignedSamplesPerPacket % 512);
+	m_nAlignedSamplesPerPacket = max(512, m_nAlignedSamplesPerPacket);
+
 	m_hWorker = CreateThread(NULL, 0, _Worker, this, 0, &m_dwWorkerID);	// FIXME: Create before Start if Read won't break when not-yet-started
 	if (m_hWorker == NULL)
 	{
@@ -618,7 +664,7 @@ retry_start:
 	//AfxTrace(_T("Priority class before rise: 0x%04x\n"), GetPriorityClass(GetCurrentProcess()));
 	//SetPriorityClass(GetCurrentProcess(), HIGH_PRIORITY_CLASS);
 
-	return m_pUSRP->GetSamplesPerPacket(); // Number of complex elements returned each invocation of the callback routine, multiple of 512
+	return m_nAlignedSamplesPerPacket; // Number of complex elements returned each invocation of the callback routine, multiple of 512
 }
 
 void ExtIO_USRP::Abort()
@@ -632,7 +678,7 @@ void ExtIO_USRP::Abort()
 
 void ExtIO_USRP::Stop()
 {
-	if ((m_pUSRP == NULL) || (m_hEvent == NULL))	// Not checking whether running, only existence of thread
+	if ((m_pUSRP == NULL) || (m_hEvent == NULL) || (m_hWorkedFinished == NULL))	// Not checking whether running, only existence of thread
 		return;
 
 	//AfxTrace(_T("Priority class before fall: 0x%04x\n"), GetPriorityClass(GetCurrentProcess()));
@@ -651,8 +697,24 @@ void ExtIO_USRP::Stop()
 
 		AfxTrace(_T("Waiting for termination of thread 0x%x...\n"), m_dwWorkerID);
 
-		if (CAN_CAST(m_pUSRP, MemoryUSRP) == false)	// TODO: Figure out why this deadlocks on shutdown (does it anymore?)
+		WaitForSingleObject(m_hWorkedFinished, INFINITE);
+
+		if (CAN_CAST(m_pUSRP, MemoryUSRP) == false)	// Loader locks on program exit while in playback mode, so skip waiting for thread
+		{
 			WaitForSingleObject(m_hWorker, INFINITE);
+		}
+		/*else
+		{
+			do
+			{
+				Teh::Utils::PumpMessageLoop();
+				{
+					CSingleLock lock(&m_cs, TRUE);
+					if (m_bWorkerActive == false)
+						break;
+				}
+			} while (WaitForSingleObject(m_hWorker, 150) == WAIT_TIMEOUT);
+		}*/
 
 		CloseHandle(m_hWorker);
 		m_hWorker = NULL;
@@ -845,9 +907,21 @@ DWORD ExtIO_USRP::Worker()
 	USHORT usIndex = 0;
 	bool bFirstPacket = true;
 
+	UINT nAlignedPayloadSize = m_nAlignedSamplesPerPacket * 2 * sizeof(short);
+	UINT nAlignedBufferSize = nAlignedPayloadSize * 2;
+	LPBYTE pAlignedBuffer = new BYTE[nAlignedBufferSize];
+	UINT nAlignedBufferUse = 0;	// Bytes
+
+	USHORT usTestCounter = 0x0000;
+
 	////////////////////////////
 
 	SetThreadPriority(GetCurrentThread(), /*THREAD_PRIORITY_HIGHEST*/THREAD_PRIORITY_TIME_CRITICAL);
+
+	{
+		CSingleLock lock(&m_cs, TRUE);
+		m_bWorkerActive = true;
+	}
 
 	while (true)
 	{
@@ -881,8 +955,21 @@ DWORD ExtIO_USRP::Worker()
 			{
 				AfxTrace(_T("Only read %lu samples of %lu (missing %lu)\n"), iSamplesRead, m_pUSRP->GetSamplesPerPacket(), (m_pUSRP->GetSamplesPerPacket() - iSamplesRead));
 			}
+			else	// Added this because we can handle different sized reads due to aligned buffer
+				continue;
+		}
 
-			continue;
+		if (m_bTestMode)
+		{
+			USHORT* pBuffer = const_cast<USHORT*>((const USHORT*)m_pUSRP->GetBuffer());
+
+			for (int i = 0; i < iSamplesRead; ++i)
+			{
+				pBuffer[i*2+0] = usTestCounter;
+				pBuffer[i*2+1] = usTestCounter;
+
+				++usTestCounter;
+			}
 		}
 
 		////////////////////////////
@@ -890,7 +977,24 @@ DWORD ExtIO_USRP::Worker()
 		CSingleLock lock(&m_cs, TRUE);
 
 		if (m_pfnCallback)
-			(m_pfnCallback)(m_pUSRP->GetSamplesPerPacket(), 0, 0, const_cast<short*>(m_pUSRP->GetBuffer()));
+		{
+			//(m_pfnCallback)(m_pUSRP->GetSamplesPerPacket(), 0, 0, const_cast<short*>(m_pUSRP->GetBuffer()));
+
+			int iBytesRead = iSamplesRead * 2 * sizeof(short);
+			UINT nCopy = min((UINT)iBytesRead, nAlignedBufferSize - nAlignedBufferUse);
+			memcpy(pAlignedBuffer + nAlignedBufferUse, m_pUSRP->GetBuffer(), nCopy);
+			nAlignedBufferUse += nCopy;
+
+			while ((nAlignedBufferUse > 0) && (nAlignedBufferUse >= nAlignedPayloadSize))
+			{
+				(m_pfnCallback)(m_nAlignedSamplesPerPacket, 0, 0, (short*)pAlignedBuffer);
+
+				nAlignedBufferUse -= nAlignedPayloadSize;
+
+				if (nAlignedBufferUse > 0)
+					memmove(pAlignedBuffer, pAlignedBuffer + nAlignedPayloadSize, nAlignedPayloadSize);
+			}
+		}
 
 		lock.Unlock();
 
@@ -999,6 +1103,14 @@ DWORD ExtIO_USRP::Worker()
 		CloseHandle(hDataSent);
 
 	delete [] pPacketData;
+	delete [] pAlignedBuffer;
+
+	{
+		CSingleLock lock(&m_cs, TRUE);
+		m_bWorkerActive = false;
+	}
+
+	SetEvent(m_hWorkedFinished);
 
 	return 0;
 }

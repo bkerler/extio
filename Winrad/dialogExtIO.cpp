@@ -239,7 +239,7 @@ BOOL CdialogExtIO::OnInitDialog()
 	//m_cntrlSlider_Gain.SetRange(0, 100);
 
 	SetDlgItemText(IDC_EDIT_DEVICE_HINT, m_pUSRP->GetDevice());
-	_LoadCombo(m_cntrlCombo_DeviceHint, _T("Device hints"), true);
+	_LoadCombo(m_cntrlCombo_DeviceHint, _T("Device hints")/*, true*/);
 	if (m_pUSRP->GetDevice().IsEmpty() == false)
 	{
 		m_cntrlCombo_DeviceHint.SetWindowText(m_pUSRP->GetDevice());
@@ -481,11 +481,11 @@ void CdialogExtIO::_UpdateUI(DWORD dwFlags /*= UF_ALL*/)
 				CString strName(pUSRP->GetName());
 				if (strName.IsEmpty())
 					strName = _T("(no name)");
-				SetWindowText(CString(_T("USRP: ")) + strName);
+				SetWindowText(CString(_T("ExtIO: ")) + strName);
 			}
 		}
 		else
-			SetWindowText(_T("USRP"));
+			SetWindowText(_T("ExtIO"));
 	}
 
 	////////////////////////////////////////
@@ -526,8 +526,8 @@ void CdialogExtIO::_UpdateUI(DWORD dwFlags /*= UF_ALL*/)
 
 		str.Format(_T("\nH/W:\t\t%s\nTarget LO:\t%s\nActual LO:\t%s\nTarget DDC:\t%s\nActual DDC:\t%s"),
 			FormatFrequency(pUSRP->GetFreq()),
-			FormatFrequency(pUSRP->GetTuneResult().target_inter_freq),
-			FormatFrequency(pUSRP->GetTuneResult().actual_inter_freq),
+			FormatFrequency(pUSRP->GetTuneResult()./*target_inter_freq*/target_rf_freq),
+			FormatFrequency(pUSRP->GetTuneResult()./*actual_inter_freq*/actual_rf_freq),
 			FormatFrequency(pUSRP->GetTuneResult().target_dsp_freq),
 			FormatFrequency(pUSRP->GetTuneResult().actual_dsp_freq));
 		strBuf += str;

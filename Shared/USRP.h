@@ -1,6 +1,7 @@
 #pragma once
 
-#include <uhd/usrp/single_usrp.hpp>
+//#include <uhd/usrp/single_usrp.hpp>
+#include <uhd/usrp/multi_usrp.hpp>
 
 class IUSRPConfiguration
 {
@@ -68,6 +69,7 @@ public:
 	virtual inline bool IsRunning() const=0;
 	virtual inline const uhd::tune_result_t& GetTuneResult() const=0;
 	virtual inline CString GetName() const=0;
+	virtual inline CString GetSerial() const=0;
 	//inline const CCriticalSection* GetLock() const=0;
 	virtual inline const uhd::rx_metadata_t& GetMetadata() const=0;
 	virtual inline const short* GetBuffer() const=0;
@@ -95,7 +97,7 @@ protected:
 	size_t	m_recv_samples_per_packet;
 	double 	m_fpga_master_clock_freq;
 	bool	m_bRunning;
-	CString	m_strName;
+	CString	m_strName, m_strSerial;
 	short*	m_pBuffer;
 	UINT64	m_nSamplesReceived;
 	UINT	m_nOverflows;
@@ -142,6 +144,8 @@ public:
 	{ return m_tuneResult; }
 	virtual inline CString GetName() const
 	{ return m_strName; }
+	virtual inline CString GetSerial() const
+	{ return m_strSerial; }
 	//inline const CCriticalSection* GetLock() const
 	//{ return &m_cs; }
 	virtual inline const uhd::rx_metadata_t& GetMetadata() const
@@ -200,7 +204,7 @@ protected:
 	uhd::tune_result_t m_tuneResult;
 	uhd::rx_metadata_t m_metadata;*/
 protected:
-	uhd::usrp::single_usrp::sptr m_dev;
+	uhd::usrp::/*single*/multi_usrp::sptr m_dev;
 	CCriticalSection m_cs;
 public:
 	virtual bool Create(LPCTSTR strHint = NULL);
@@ -262,7 +266,8 @@ public:
 	virtual inline double GetSampleRate() const
 	{
 		if (!m_dev) return __super::GetSampleRate();
-		CSingleLock lock(const_cast<CCriticalSection*>(&m_cs), TRUE); return m_dev->get_rx_rate();
+		CSingleLock lock(const_cast<CCriticalSection*>(&m_cs), TRUE);
+		try { return m_dev->get_rx_rate(); } catch (...) { return m_dSampleRate; }
 	}
 	virtual inline double GetGain() const
 	{
@@ -270,17 +275,19 @@ public:
 		CSingleLock lock(const_cast<CCriticalSection*>(&m_cs), TRUE);
 		//AfxTrace(_T("H/W Gain = %f,\tStored = %f\t(Running = %s)\n"), m_dev->get_rx_gain(), m_dGain, (m_bRunning ? _T("true") : _T("false")));
 		if (!m_bRunning) return m_dGain;
-		return m_dev->get_rx_gain();
+		try { return m_dev->get_rx_gain(); } catch (...) { return m_dGain; }
 	}
 	virtual inline CString GetAntenna() const
 	{
 		if (!m_dev) return __super::GetAntenna();
-		CSingleLock lock(const_cast<CCriticalSection*>(&m_cs), TRUE); return CString(CStringA(m_dev->get_rx_antenna().c_str()));
+		CSingleLock lock(const_cast<CCriticalSection*>(&m_cs), TRUE);
+		try { return CString(CStringA(m_dev->get_rx_antenna().c_str())); } catch (...) { return m_strAntenna; }
 	}
 	virtual inline double GetFreq() const
 	{
 		if (!m_dev) return __super::GetFreq();
-		CSingleLock lock(const_cast<CCriticalSection*>(&m_cs), TRUE); return m_dev->get_rx_freq();
+		CSingleLock lock(const_cast<CCriticalSection*>(&m_cs), TRUE);
+		try { return m_dev->get_rx_freq(); } catch (...) { return m_dFreq; }
 	}
 };
 
