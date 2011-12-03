@@ -39,6 +39,9 @@
 #include <afxsock.h>            // MFC socket extensions
 //#include <afxdhtml.h>
 */
+#define TEH_BASE_LINK_STATIC
+#include <TehBase\TehLinkBaseLib.h>
+
 #define TEH_INCLUDE_MANIFEST
 #include <TehBase\TehManifest.h>
 
@@ -53,10 +56,40 @@
 #include <iostream>
 #include <XmlRpc.h>
 
+#include <setupapi.h>
+#include <devguid.h>
+
+#include <mmsystem.h>
+#include <dsound.h>
+
 #include <complex>
 #include <afxwin.h>
 
 #include <atlbase.h>
 
-#include <uhd/usrp/single_usrp.hpp>
+//#include <uhd/usrp/single_usrp.hpp>
+#include <uhd/usrp/multi_usrp.hpp>
 #include <usrp/libusrp.h>
+
+#ifndef _DEBUG
+inline void AFX_CDECL _AfxTrace(LPCTSTR lpszFormat, ...)
+{
+	va_list args;
+	va_start(args, lpszFormat);
+
+	int nBuf;
+	TCHAR szBuffer[512];
+
+	nBuf = _vstprintf_s(szBuffer, _countof(szBuffer), lpszFormat, args); 
+
+	// was there an error? was the expanded string too long?
+	ASSERT(nBuf >= 0);
+
+	//afxDump << szBuffer;
+	OutputDebugString(szBuffer);
+
+	va_end(args);
+}
+
+#define AfxTrace	_AfxTrace
+#endif // !_DEBUG

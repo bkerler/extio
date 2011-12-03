@@ -1,8 +1,10 @@
 #include "StdAfx.h"
 #include "USRP.h"
 
-#include <uhd/usrp/mboard_props.hpp>
-#include <uhd/usrp/device_props.hpp>
+//#include <uhd/usrp/mboard_props.hpp>
+//#include <uhd/usrp/device_props.hpp>
+#include <uhd/property_tree.hpp>
+#include <uhd/usrp/mboard_eeprom.hpp>
 
 USRPConfiguration::USRPConfiguration()
 	: m_dSampleRate(0.0)
@@ -173,7 +175,7 @@ bool USRP::Create(LPCTSTR strHint /*= NULL*//*, double dSampleRate = 0*/)
 		CStringA strHintA(strFilteredHint);
 		uhd::device_addr_t dev_addr((LPCSTR)strHintA);
 
-		if (!(m_dev = uhd::usrp::single_usrp::make(dev_addr)))
+		if (!(m_dev = uhd::usrp::/*single*/multi_usrp::make(dev_addr)))
 			return false;
 	}
 /*	catch (const uhd::exception& e)
@@ -216,15 +218,35 @@ bool USRP::Create(LPCTSTR strHint /*= NULL*//*, double dSampleRate = 0*/)
 	size_t nMBs = m_dev->get_num_mboards();
 
 	m_recv_samples_per_packet = m_dev->get_device()->get_max_recv_samps_per_packet();
+	if (m_recv_samples_per_packet == 0)
+	{
+		m_strLastError = _T("Samples per packet returned zero");
+		return false;
+	}
 
 	try
 	{
-		m_strName = CString(CStringA(m_dev->get_mboard_name().c_str()));	// This is the fail-safe
+		m_strName = m_strSerial = _T("USRP");	// This is the fail-safe
+
+		m_strName = CString(CStringA(m_dev->get_mboard_name().c_str()));
+		m_strSerial = m_strName;
 
 		//uhd::usrp::mboard_iface::sptr mboard = m_dev->get_mboard_iface(0);
 
+		boost::shared_ptr<uhd::property_tree> tree = m_dev->get_device()->get_tree();
+
+		//std::string strSerial = tree->access<std::string>("/mboards/0/eeprom/serial").get();
+		//m_strSerial = CStringA(strSerial.c_str());
+
+		uhd::usrp::mboard_eeprom_t mb_eeprom = tree->access<uhd::usrp::mboard_eeprom_t>("/mboards/0/eeprom").get();
+		if (mb_eeprom.has_key("serial"))
+		{
+			m_strSerial = CStringA(mb_eeprom["serial"].c_str());
+			m_strName += _T(" (") + m_strSerial + _T(")");
+		}
+
 		//wax::obj wDev = m_dev->get_device();
-		std::string mb_name = (*m_dev->get_device())[uhd::usrp::DEVICE_PROP_MBOARD_NAMES].as<uhd::prop_names_t>().at(0);
+/*		std::string mb_name = (*m_dev->get_device())[uhd::usrp::DEVICE_PROP_MBOARD_NAMES].as<uhd::prop_names_t>().at(0);
 		wax::obj mb = (*m_dev->get_device())[uhd::named_prop_t(uhd::usrp::DEVICE_PROP_MBOARD, mb_name)];
 		//wax::obj eeprom = (mb[uhd::usrp::MBOARD_PROP_EEPROM_MAP]);
 		uhd::usrp::mboard_eeprom_t eeprom = (mb[uhd::usrp::MBOARD_PROP_EEPROM_MAP]).as<uhd::usrp::mboard_eeprom_t>();
@@ -232,6 +254,10 @@ bool USRP::Create(LPCTSTR strHint /*= NULL*//*, double dSampleRate = 0*/)
 		//std::string strSerial = eeprom[wax::obj(std::string("serial"))].as<std::string>();
 		std::string strSerial = eeprom["serial"];
 		m_strName = CString(CStringA(strSerial.c_str()));
+*/	}
+	catch (const std::runtime_error& e)
+	{
+		AfxTrace(_T("Exception while getting serial number: ") + CString(e.what()) + _T("\n"));
 	}
 	catch (...)
 	{
@@ -239,12 +265,54 @@ bool USRP::Create(LPCTSTR strHint /*= NULL*//*, double dSampleRate = 0*/)
 	}
 
 	m_fpga_master_clock_freq = m_dev->get_master_clock_rate();
+	if (m_fpga_master_clock_freq <= 0)
+	{
+		m_strLastError = _T("Invalid master clock frequency: ") + Teh::Utils::ToString(m_fpga_master_clock_freq);
+		return false;
+	}
+
 	m_gainRange = m_dev->get_rx_gain_range();
 
 	m_dSampleRate = m_dev->get_rx_rate();
-	m_dFreq = m_dev->get_rx_freq();
-	m_dGain = m_dev->get_rx_gain();
-	m_strAntenna = m_dev->get_rx_antenna().c_str();
+
+	try
+	{
+		m_dFreq = m_dev->get_rx_freq();
+	}
+	catch (const std::runtime_error& e)
+	{
+		AfxTrace(_T("Exception while getting frequency: ") + CString(e.what()) + _T("\n"));
+	}
+	catch (...)
+	{
+		AfxTrace(_T("Exception while getting frequency\n"));
+	}
+
+	try
+	{
+		m_dGain = m_dev->get_rx_gain();
+	}
+	catch (const std::runtime_error& e)
+	{
+		AfxTrace(_T("Exception while getting gain: ") + CString(e.what()) + _T("\n"));
+	}
+	catch (...)
+	{
+		AfxTrace(_T("Exception while getting gain\n"));
+	}
+
+	try
+	{
+		m_strAntenna = m_dev->get_rx_antenna().c_str();
+	}
+	catch (const std::runtime_error& e)
+	{
+		AfxTrace(_T("Exception while getting antenna: ") + CString(e.what()) + _T("\n"));
+	}
+	catch (...)
+	{
+		AfxTrace(_T("Exception while getting antenna\n"));
+	}
 
 	SAFE_DELETE_ARRAY(m_pBuffer);
 
@@ -500,7 +568,7 @@ double USRP::SetFreq(double dFreq)
 		return -1;
 	}
 
-	return m_tuneResult.actual_inter_freq + m_tuneResult.actual_dsp_freq;
+	return m_tuneResult./*actual_inter_freq*/actual_rf_freq + m_tuneResult.actual_dsp_freq;
 }
 
 bool USRP::Start()

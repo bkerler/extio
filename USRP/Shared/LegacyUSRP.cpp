@@ -114,7 +114,8 @@ bool LegacyUSRP::Create(LPCTSTR strHint /*= NULL*/)
 		return false;
 	}
 
-	m_strName = CString(CStringA(m_u_rx->serial_number().c_str()));
+	m_strSerial = CString(CStringA(m_u_rx->serial_number().c_str()));
+	m_strName = _T("USRP (") + m_strSerial + _T(")");
 
 	//m_u_rx->set_fpga_master_clock_freq(m_fpga_master_clock_freq);
 	m_fpga_master_clock_freq = m_u_rx->fpga_master_clock_freq();
@@ -344,12 +345,12 @@ double LegacyUSRP::SetFreq(double dFreq)
 		return false;
 	}
 
-	m_tuneResult.target_inter_freq = dFreq;
-	m_tuneResult.actual_inter_freq = tr.baseband_freq;
+	m_tuneResult./*target_inter_freq*/target_rf_freq = dFreq;
+	m_tuneResult./*actual_inter_freq*/actual_rf_freq = tr.baseband_freq;
 	m_tuneResult.target_dsp_freq = tr.dxc_freq + tr.residual_freq;	// FIXME: Check this
 	m_tuneResult.actual_dsp_freq = tr.dxc_freq;
 
-	return m_tuneResult.actual_inter_freq + m_tuneResult.actual_dsp_freq;
+	return m_tuneResult./*actual_inter_freq*/actual_rf_freq + m_tuneResult.actual_dsp_freq;
 }
 
 double LegacyUSRP::SetSampleRate(double dSampleRate)

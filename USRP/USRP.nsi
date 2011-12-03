@@ -35,15 +35,15 @@ RequestExecutionLevel admin
 
 #######################################
 
-!define PRODUCT_NAME		"ExtIO_USRP + BorIP"
-!define PRODUCT_VERSION		"1.0.1"
+!define PRODUCT_NAME		"ExtIO_USRP+FCD + BorIP"
+!define PRODUCT_VERSION		"1.1"
 !define PRODUCT_PUBLISHER	"balint@spench.net"
-!define MAIN_COMMENT		"ExtIO_USRP plugin for Winrad-compatible SDR receivers && BorIP USRP Server"
+!define MAIN_COMMENT		"ExtIO_USRP+FCD plugin for Winrad-compatible SDR receivers && BorIP USRP+FCD Server"
 
 !define UNINSTALLER			"Uninstall ${PRODUCT_NAME}.exe"
 
 !define BORIP				"BorIP"
-!define EXTIO_USRP			"ExtIO_USRP"
+!define EXTIO_USRP			"ExtIO_USRP"	# Used for DLL file title
 
 !define MAIN_WWW			"http://spench.net/r/USRP_Interfaces"
 !define MAIN_RUN_KEY_NAME	"${BORIP}"
@@ -78,7 +78,7 @@ Var StartMenuFolder
 
 	!define MUI_WELCOMEPAGE_TITLE "Installer for ${PRODUCT_NAME} ${PRODUCT_VERSION}"
 	!define MUI_WELCOMEPAGE_TITLE_3LINES # Extra space for the title area
-	!define MUI_WELCOMEPAGE_TEXT "The ExtIO_USRP plugin will allow you to use your USRP hardware with the Winrad-series of SDR applications.$\n$\nBorIP will allow you to do this remotely over a network.$\n$\nData from both can be sent to other applications, such as the UDP Source block in GNU Radio/GRC.$\n$\nPress Next to continue."
+	!define MUI_WELCOMEPAGE_TEXT "The ExtIO_USRP+FCD plugin will allow you to use your USRP/FCD hardware with the Winrad-series of SDR applications.$\n$\nBorIP will allow you to do this remotely over a network.$\n$\nData from both can be sent to other applications, such as the UDP Source block in GNU Radio/GRC.$\n$\nPress Next to continue."
 !insertmacro MUI_PAGE_WELCOME
 
 !insertmacro MUI_PAGE_LICENSE "License.rtf"
@@ -86,7 +86,7 @@ Var StartMenuFolder
 	!define MUI_COMPONENTSPAGE_SMALLDESC
 !insertmacro MUI_PAGE_COMPONENTS
 
-	!define MUI_DIRECTORYPAGE_TEXT_TOP	"If you want to use the ExtIO_USRP plugin (and optionally BorIP), select your existing ExtIO-compatible SDR receiver application's installation folder (i.e. where you installed HDSDR/Winrad/etc).$\n$\nIf you ONLY want to use BorIP, create a new folder of your choice."
+	!define MUI_DIRECTORYPAGE_TEXT_TOP	"If you want to use the ExtIO_USRP+FCD plugin (and optionally BorIP), select your EXISTING ExtIO-compatible SDR receiver application's installation folder (i.e. where you installed HDSDR/Winrad/etc).$\n$\nIf you are performing a FRESH install of the receiver app (i.e. it is not yet installed), create the receiver directory below and select the same one during installation of the receiver itself.$\n$\nIf you ONLY want to use BorIP, create a new folder of your choice."
 	!define MUI_DIRECTORYPAGE_VARIABLE	$INSTDIR	# $MainFolder
 !insertmacro MUI_PAGE_DIRECTORY
 
@@ -139,7 +139,7 @@ VIAddVersionKey /LANG=${LANG_ENGLISH} "CompanyName" "spench.net"
 #VIAddVersionKey /LANG=${LANG_ENGLISH} "LegalTrademarks" "Test Application is a trademark of Fake company"
 VIAddVersionKey /LANG=${LANG_ENGLISH} "LegalCopyright" "© Balint Seeber 2011. All rights reserved."
 VIAddVersionKey /LANG=${LANG_ENGLISH} "FileDescription" "${PRODUCT_NAME} (${TIMESTAMP})"
-VIAddVersionKey /LANG=${LANG_ENGLISH} "FileVersion" "1.0"
+VIAddVersionKey /LANG=${LANG_ENGLISH} "FileVersion" "${PRODUCT_VERSION}"
 VIAddVersionKey /LANG=${LANG_ENGLISH} "InternalName" "${TIMESTAMP}"
 #VIAddVersionKey /LANG=${LANG_ENGLISH} "OriginalFilename" ""
 #VIAddVersionKey /LANG=${LANG_ENGLISH} "PrivateBuild" ""
@@ -215,9 +215,10 @@ Section "!${PRODUCT_NAME}" secMain
 	File "Release\libusb-1.0.dll"
 	File "Release\libusrp.dll"
 	File "Release\uhd.dll"
-	File "Release\usrp1_fw.ihx"
-	File "Release\usrp1_fpga.rbf"
-	File "Release\usrp1_fpga_4rx.rbf"
+	#File "Release\usrp1_fw.ihx"
+	#File "Release\usrp1_fpga.rbf"
+	#File "Release\usrp1_fpga_4rx.rbf"
+	File "D:\Dev\usrp-images\*.*"
 	File /r "Release\rev4"
 	
 	FindFirst $0 $1 "$SYSDIR\libusb0.dll"
@@ -347,10 +348,15 @@ Function .onInit
 	ClearErrors
 	#StrCpy $0 0
 	EnumRegValue $1 HKLM "SOFTWARE\Microsoft\Windows\CurrentVersion\SideBySide\Winners\x86_microsoft.vc90.crt_1fc8b3b9a1e18e3b_none_ea33c8f0b247cd77\9.0" 0 #$0
-	IfErrors no_runtime
+	IfErrors no_runtime_check_xp
 	#IntOp $0 $0 + 1
 	#ReadRegStr $2 HKLM Software\Microsoft\Windows\CurrentVersion $1
 	Goto skip_runtime	# Runtime is present
+no_runtime_check_xp:
+	ClearErrors
+	EnumRegKey $1 HKLM "SOFTWARE\Microsoft\Windows\CurrentVersion\SideBySide\Installations\x86_Microsoft.VC90.CRT_1fc8b3b9a1e18e3b_9.0.21022.8_x-ww_d08d0375" 0 #$0
+	IfErrors no_runtime
+	Goto skip_runtime
 no_runtime:
 	IntOp $0 ${SF_SELECTED} | ${SF_RO}
 	SectionSetFlags ${secRuntime} $0

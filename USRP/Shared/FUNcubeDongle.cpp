@@ -4,6 +4,8 @@
 #define FCD_SAMPLE_RATE	96000
 #define BUFFER_LENGTH	1
 
+#ifndef AfxTrace
+
 static void AFX_CDECL _AfxTrace(LPCTSTR lpszFormat, ...)
 {
 	va_list args;
@@ -26,6 +28,8 @@ static void AFX_CDECL _AfxTrace(LPCTSTR lpszFormat, ...)
 #ifndef _DEBUG
 #define AfxTrace	_AfxTrace
 #endif // _DEBUG
+
+#endif // _AfxTrace
 
 FUNcubeDongle::FUNcubeDongle()
 	: m_iDeviceIndex(-1)
@@ -174,6 +178,7 @@ BOOL FUNcubeDongle::DSEnumCallback(LPGUID lpGuid, LPCTSTR lpcstrDescription, LPC
 		{
 			m_guidCaptureDevice = (*lpGuid);
 			m_strName = lpcstrDescription;
+			m_strSerial = lpcstrDescription;
 			return FALSE;
 		}
 		else
@@ -629,8 +634,8 @@ double FUNcubeDongle::SetFreq(double dFreq)
 
 	memcpy(&nFreq, &au8BufIn[3], sizeof(int));
 
-	m_tuneResult.target_inter_freq = dFreq;
-	m_tuneResult.actual_inter_freq = nFreq;
+	m_tuneResult./*target_inter_freq*/target_rf_freq = dFreq;
+	m_tuneResult./*actual_inter_freq*/actual_rf_freq = nFreq;
 
 	return nFreq;
 }

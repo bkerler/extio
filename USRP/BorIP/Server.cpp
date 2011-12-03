@@ -142,6 +142,10 @@ bool Server::Initialise(ServerCallback* pCallback /*= NULL*/, int iListenerPort 
 		return false;
 	}
 
+	CString str;
+	str.Format(_T("Listening on port %i"), m_iDefaultPort);
+	Log(str);
+
 	m_pClient = new CsocketClient(this);
 	ASSERT(m_pClient);
 
@@ -282,7 +286,7 @@ CString Server::FormatDevice()
 	str += strBuf;
 
 	std::vector<std::string> array = m_pUSRP->GetAntennas();
-	if (array.empty() == false)
+	//if (array.empty() == false)
 		str += _T("|");
 	for (std::vector<std::string>::iterator it = array.begin(); it != array.end(); ++it)
 	{
@@ -291,6 +295,8 @@ CString Server::FormatDevice()
 
 		str += CString((*it).c_str());
 	}
+
+	str += _T("|") + m_pUSRP->GetSerial();
 
 	return str;
 }
@@ -426,8 +432,8 @@ void Server::OnCommand(CsocketClient* pSocket, const CString& str)
 
 					CString strBuf;
 					strBuf.Format(_T(" %f %f %f %f"),
-						m_pUSRP->GetTuneResult().target_inter_freq,
-						m_pUSRP->GetTuneResult().actual_inter_freq,
+						m_pUSRP->GetTuneResult()./*target_inter_freq*/target_rf_freq,
+						m_pUSRP->GetTuneResult()./*actual_inter_freq*/actual_rf_freq,
 						m_pUSRP->GetTuneResult().target_dsp_freq,
 						m_pUSRP->GetTuneResult().actual_dsp_freq);
 

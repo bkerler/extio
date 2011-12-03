@@ -290,6 +290,18 @@ bool RemoteUSRP::Connect(LPCTSTR strAddress, LPCTSTR strHint /*= NULL*/)
 
 	m_strLastError.Empty();
 
+	CString strAddr(strAddress);
+	int iPort = 0;
+	int iIndex = strAddr.Find(_T(':'));
+	if (iIndex > -1)
+	{
+		iPort = _tstoi(strAddr.Mid(iIndex + 1));
+		strAddr = strAddr.Left(iIndex);
+	}
+
+	if (iPort <= 0)
+		iPort = BOR_PORT;
+
 	if (m_pClient->Create() == FALSE)
 	{
 		m_strLastError = _T("Failed to create local command socket");
@@ -307,7 +319,7 @@ bool RemoteUSRP::Connect(LPCTSTR strAddress, LPCTSTR strHint /*= NULL*/)
 	ZERO_MEMORY(addr);
 	addr.sin_family = AF_INET;
 	addr.sin_addr.S_un.S_addr = INADDR_ANY;
-	addr.sin_port = htons(BOR_PORT);
+	addr.sin_port = htons(iPort);
 	int iResult = bind(m_hDataSocket, (sockaddr*)&addr, sizeof(addr));
 	if (iResult == SOCKET_ERROR)
 	{
@@ -413,7 +425,7 @@ bool RemoteUSRP::Connect(LPCTSTR strAddress, LPCTSTR strHint /*= NULL*/)
 	}
 	return TRUE;
 */
-	if (m_pClient->Connect(strAddress, BOR_PORT) == FALSE)
+	if (m_pClient->Connect(strAddr, iPort) == FALSE)
 	{
 		m_strLastError = _T("Failed to connect to remote server");
 		goto connect_failure;
@@ -598,7 +610,7 @@ double RemoteUSRP::SetFreq(double dFreq)
 		return -1;
 	}
 
-	return m_tuneResult.actual_inter_freq + m_tuneResult.actual_dsp_freq;
+	return m_tuneResult./*actual_inter_freq*/actual_rf_freq + m_tuneResult.actual_dsp_freq;
 }
 
 bool RemoteUSRP::CopyState(IUSRP* pOther)	// FIXME: Remote address
@@ -837,6 +849,7 @@ void RemoteUSRP::OnCommand(CsocketClient* pSocket, const CString& str)
 			else	//usrp1 mboard - 4c69abc2|0.000000|51.500000|0.500000|64000000.000000|4096|TX/RX,RX2
 			{
 				m_strName = array[0];
+				m_strSerial.Empty();
 
 				m_gainRange = uhd::gain_range_t(_tstof(array[1]), _tstof(array[2]), _tstof(array[3]));
 
@@ -855,6 +868,11 @@ void RemoteUSRP::OnCommand(CsocketClient* pSocket, const CString& str)
 				}
 				else
 					m_arrayAntennas.clear();
+
+				if (array.GetCount() >= 8)
+					m_strSerial = array[7];
+				else
+					m_strSerial = m_strName;
 			}
 		}
 	}
@@ -880,8 +898,8 @@ void RemoteUSRP::OnCommand(CsocketClient* pSocket, const CString& str)
 			}
 			else if (array.GetCount() == 5)
 			{
-				m_tuneResult.target_inter_freq = _tstof(array[1]);
-				m_tuneResult.actual_inter_freq = _tstof(array[2]);
+				m_tuneResult./*target_inter_freq*/target_rf_freq = _tstof(array[1]);
+				m_tuneResult./*actual_inter_freq*/actual_rf_freq = _tstof(array[2]);
 				m_tuneResult.target_dsp_freq = _tstof(array[3]);
 				m_tuneResult.actual_dsp_freq = _tstof(array[4]);
 			}

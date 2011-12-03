@@ -229,6 +229,7 @@ void CWinradUSRPApp::_Close(bool bAll /*= false*/)
 		{
 			m_pUSRP->Destroy();
 			SAFE_DELETE(m_pUSRP);
+			return;
 		}
 
 		m_pUSRP->Playback();
@@ -290,7 +291,7 @@ BOOL CWinradUSRPApp::InitInstance()
 
 	AfxTrace(_T("Maximum UDP size: %hu\n"), wsa.iMaxUdpDg);
 
-	m_memPlayback.AllocateMemory(512 * 2 * sizeof(short));
+	m_memPlayback.AllocateMemory(512 * 2 * sizeof(short));	// RawDataReady processes in 512-sample chunks
 
 	return TRUE;
 }
@@ -651,16 +652,25 @@ __declspec(dllexport) void __stdcall RawDataReady(long samprate, int *Ldata, int
 			mem.ReallocateMemory(nSize);
 	}
 
-	LPBYTE pDest = mem.GetMemoryPointer();
+	//LPBYTE pDest = mem.GetMemoryPointer();
+	PSHORT pDest = (PSHORT)mem.GetMemoryPointer();
 	ASSERT(pDest);
 
-	for (int i = 0; i < numsamples; ++i)
-	{
-		memcpy(pDest, ((LPBYTE)(Ldata + i)) + 1, sizeof(short));
-		pDest += sizeof(short);
+	//AfxTrace(_T("RawDataReady: %i samples\n"), numsamples);
 
-		memcpy(pDest, ((LPBYTE)(Rdata + i)) + 1, sizeof(short));
-		pDest += sizeof(short);
+	for (int i = 0; i < numsamples; ++i)	// Although int data is 24-bits (first 8 is 0), last 8 seems to be sign extension
+	{
+		//memcpy(pDest, ((LPBYTE)(Ldata + i)) + 1, sizeof(short));
+		//pDest += sizeof(short);
+		int L = (*(Ldata + i) >> 8);
+		BYTE bL = (((BYTE)(L >> 12) & 0x0F) - 2) & 0x0F;
+		pDest[2*i+0] = (USHORT)((L & 0x00000FFF) | (bL << 12));
+
+		//memcpy(pDest, ((LPBYTE)(Rdata + i)) + 1, sizeof(short));
+		//pDest += sizeof(short);
+		int R = (*(Rdata + i) >> 8);
+		BYTE bR = (((BYTE)(R >> 12) & 0x0F) - 2) & 0x0F;
+		pDest[2*i+1] = (USHORT)((R & 0x00000FFF) | (bR << 12));
 	}
 
 	pMU->SubmitSamples(mem.GetMemoryPointer(), nSize);
