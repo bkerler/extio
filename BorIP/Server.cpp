@@ -152,15 +152,38 @@ bool Server::Initialise(ServerCallback* pCallback /*= NULL*/, int iListenerPort 
 	return true;
 }
 
+void Server::SetResetTime(const CTime* pResetTime)
+{
+	if (pResetTime == NULL)
+	{
+		m_timeDeviceReset = CTime();
+		Log(_T("Disabled device reset timer"));
+		return;
+	}
+
+	CTime timeNow = CTime::GetCurrentTime();
+	CTime timeOld = m_timeDeviceReset;
+	m_timeDeviceReset = CTime(timeNow.GetYear(), timeNow.GetMonth(), timeNow.GetDay(), pResetTime->GetHour(), pResetTime->GetMinute(), 0);
+	if (timeNow >= m_timeDeviceReset)
+		m_timeDeviceReset += CTimeSpan(1, 0, 0, 0);
+
+	if (timeOld != m_timeDeviceReset)
+		Log(_T("Next device reset at: ") + m_timeDeviceReset.Format(_T("%Y-%m-%d %H:%M")));
+}
+
 void Server::Log(const CString& str)
 {
-	AfxTrace(str + _T("\n"));
+	CString strBuf;
+	CTime time = CTime::GetCurrentTime();
+	strBuf = time.Format(_T("[%Y-%m-%d %H:%M] ")) + str;
+
+	AfxTrace(strBuf + _T("\n"));
 
 	if (m_pCallback)
 	{
 		ServerCallback::EVENT event;
 		event.code = ServerCallback::EC_LOG;
-		event.message = str;
+		event.message = strBuf;
 
 		m_pCallback->OnServerEvent(event);
 	}
@@ -600,6 +623,8 @@ bool Server::CreateDevice(LPCTSTR strHint /*= NULL*/)
 
 	CloseDevice();
 
+	m_strLastDeviceHint = strHint;	// Stores regardless of device creation success
+
 	int iIndex = -1;
 	bool bFCD = false;
 	CStringArray array;
@@ -643,6 +668,14 @@ bool Server::CreateDevice(LPCTSTR strHint /*= NULL*/)
 
 	Log(_T("Created device: ") + strName + _T(" with hint: ") + strFilteredHint);
 
+	if (m_fileDump.m_hFile != CFile::hFileNull)
+		m_fileDump.Close();
+
+	//m_fileDump.Open(_T("W:\\borip.pcm"), CFile::modeCreate | CFile::modeWrite);
+
+	if (m_timeDeviceReset.GetTime() != 0)
+		SetResetTime(&m_timeDeviceReset);
+
 	if (m_pCallback)
 	{
 		ServerCallback::EVENT event;
@@ -682,6 +715,41 @@ void Server::CloseDevice()
 static DWORD WINAPI _Worker(LPVOID lpThreadParameter)
 {
 	return ((Server*)lpThreadParameter)->Worker();
+}
+
+void Server::RunPeriodicTasks()	// Called from dialog every 500ms
+{
+	if (m_timeDeviceReset.GetTime() != 0)
+	{
+		CTime timeNow = CTime::GetCurrentTime();
+
+		if (timeNow >= m_timeDeviceReset)
+		{
+			Log(_T("Reached device reset time"));
+
+			ASSERT(m_pUSRP);
+
+			if (m_pUSRP == NULL)
+				return;
+
+			bool bRunning = m_pUSRP->IsRunning();
+
+			USRPConfiguration config;
+			config.CopyFrom(m_pUSRP);
+
+			if (CreateDevice(m_strLastDeviceHint))
+			{
+				if (m_pUSRP->CopyState(&config) == false)
+					Log(_T("Failed to copy state to new device"));
+
+				if (bRunning)
+				{
+					if (Start() == false)
+						Log(_T("Failed to re-start device"));
+				}
+			}
+		}
+	}
 }
 
 bool Server::Start()
@@ -906,6 +974,9 @@ DWORD Server::Worker()
 
 		memcpy((m_bHeaderless ? p : pPacket->data), m_pUSRP->GetBuffer(), iPayloadLength);
 
+		if (m_fileDump.m_hFile != CFile::hFileNull)
+			m_fileDump.Write((m_bHeaderless ? p : pPacket->data), iPayloadLength);
+
 		//////////////////////////////////////////////
 
 		wsabuf.buf = (char*)p/*Packet*/;
@@ -952,22 +1023,29 @@ DWORD Server::Worker()
 
 			{
 				CSingleLock lock(&m_cs, TRUE);
-				++m_nPacketsSent;
 				++m_nBlockingSends;
+				if (iLength != dwSocketBytesSent)
+					++m_nShortSends;
+				else
+					++m_nPacketsSent;
 			}
 		}
 		else if (iResult != 0)
 		{
 			{
 				CSingleLock lock(&m_cs, TRUE);
-				++m_nShortSends;
+				//++m_nShortSends;
+				++m_nSocketErrors;
 			}
 		}
 		else
 		{
 			{
 				CSingleLock lock(&m_cs, TRUE);
-				++m_nPacketsSent;
+				if (iLength != dwSocketBytesSent)
+					++m_nShortSends;
+				else
+					++m_nPacketsSent;
 			}
 		}
 

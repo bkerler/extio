@@ -350,7 +350,7 @@ double LegacyUSRP::SetFreq(double dFreq)
 	m_tuneResult.target_dsp_freq = tr.dxc_freq + tr.residual_freq;	// FIXME: Check this
 	m_tuneResult.actual_dsp_freq = tr.dxc_freq;
 
-	return m_tuneResult./*actual_inter_freq*/actual_rf_freq + m_tuneResult.actual_dsp_freq;
+	return (m_dFreq = m_tuneResult./*actual_inter_freq*/actual_rf_freq + m_tuneResult.actual_dsp_freq);
 }
 
 double LegacyUSRP::SetSampleRate(double dSampleRate)

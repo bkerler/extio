@@ -51,6 +51,9 @@ public:
 	ServerCallback* m_pCallback;
 	bool m_bHeaderless;
 	CString m_strLastError;
+	CFile m_fileDump;
+	CTime m_timeDeviceReset;
+	CString m_strLastDeviceHint;
 public:
 	UINT m_nReadFailures;
 	UINT m_nShortReads;
@@ -80,4 +83,6 @@ public:
 	DWORD Worker();
 	void Log(const CString& str);
 	CString FormatError(LPCTSTR strError = NULL, bool bPad = true);
+	void RunPeriodicTasks();
+	void SetResetTime(const CTime* pResetTime);
 };

@@ -217,6 +217,10 @@ void CdialogMain::OnTimer(UINT_PTR nIDEvent)
 	{
 		_UpdateUI();
 	}
+	else if (nIDEvent == 1)
+	{
+		m_pServer->RunPeriodicTasks();
+	}
 
 	CDialog::OnTimer(nIDEvent);
 }
@@ -283,9 +287,11 @@ int CdialogMain::OnServerEvent(const EVENT& event)
 			break;
 		case ServerCallback::EC_CREATED:
 			_UpdateUI();
+			SetTimer(1, 1000, NULL);
 			break;
 		case ServerCallback::EC_CLOSED:
 			_UpdateUI();
+			KillTimer(1);
 			break;
 		case ServerCallback::EC_CONNECTED:
 			m_pServer->m_pClient->GetPeerName(m_strClientAddress, m_nClientPort);

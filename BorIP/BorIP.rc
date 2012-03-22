@@ -78,20 +78,20 @@ IDR_OLD_MAINFRAME       ICON                    "res\\BorIP.ico"
 // Dialog
 //
 
-IDD_ABOUTBOX DIALOGEX 0, 0, 190, 148
+IDD_ABOUTBOX DIALOGEX 0, 0, 190, 166
 STYLE DS_SETFONT | DS_MODALFRAME | DS_FIXEDSYS | WS_POPUP | WS_CAPTION | WS_SYSMENU
 CAPTION "About BorIP"
 FONT 8, "MS Shell Dlg", 0, 0, 0x1
 BEGIN
     ICON            IDR_MAINFRAME,IDC_STATIC,14,14,20,20
-    LTEXT           "BorIP, Version 1.1",IDC_STATIC,42,14,114,8,SS_NOPREFIX
-    LTEXT           "Copyright (C) Balint Seeber 2011",IDC_STATIC,42,26,114,8
+    LTEXT           "BorIP, Version 1.1.1",IDC_STATIC,42,14,114,8,SS_NOPREFIX
+    LTEXT           "Copyright (C) Balint Seeber 2011-2012",IDC_STATIC,42,26,126,8
     DEFPUSHBUTTON   "OK",IDOK,132,84,50,14,WS_GROUP
     LTEXT           "Uses USRP code from GNU Radio &&\nUHD from Ettus Research.",IDC_STATIC,42,42,114,18
     CONTROL         "<a href=""http://spench.net/r/BorIP"">spench.net</a>",IDC_SYSLINK_WWW,
                     "SysLink",WS_TABSTOP,124,66,42,12
     LTEXT           "For help, links && source:",IDC_STATIC,42,66,78,8
-    LTEXT           "Command line arguments (/ or -):\n\nport <#>\tListen on a different port than 28888\ndevice [hint]\tImmediately connect to device\n\t\t(optional device hint, default if none)",IDC_STATIC,12,102,174,42
+    LTEXT           "Command line arguments (/ or -):\n\nport <#>\tListen on a different port than 28888\ndevice [hint]\tImmediately connect to device\n\t\t(optional device hint, default if none)\nresettime <hhmm>\tTime when device should be\t\t\t\tre-created",IDC_STATIC,12,102,174,60
 END
 
 IDD_BORIP_DIALOG DIALOGEX 0, 0, 320, 238
@@ -116,7 +116,7 @@ END
 //
 
 VS_VERSION_INFO VERSIONINFO
- FILEVERSION 1,1,0,0
+ FILEVERSION 1,1,1,0
  PRODUCTVERSION 1,0,0,0
  FILEFLAGSMASK 0x3fL
 #ifdef _DEBUG
@@ -135,9 +135,9 @@ BEGIN
             VALUE "Comments", "http://spench.net/r/BorIP"
             VALUE "CompanyName", "spench.net"
             VALUE "FileDescription", "BorIP server for network streaming baseband data from, and remote control of, your USRP or FCD"
-            VALUE "FileVersion", "1.1.0.0"
+            VALUE "FileVersion", "1.1.1.0"
             VALUE "InternalName", "BorIP.exe"
-            VALUE "LegalCopyright", "(c) Balint Seeber 2011.  All rights reserved."
+            VALUE "LegalCopyright", "(c) Balint Seeber 2011-2012.  All rights reserved."
             VALUE "OriginalFilename", "BorIP.exe"
             VALUE "ProductVersion", "1.0.0.0"
         END
@@ -162,7 +162,7 @@ BEGIN
         LEFTMARGIN, 7
         RIGHTMARGIN, 183
         TOPMARGIN, 7
-        BOTTOMMARGIN, 141
+        BOTTOMMARGIN, 159
     END
 
     IDD_BORIP_DIALOG, DIALOG

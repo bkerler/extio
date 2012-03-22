@@ -31,6 +31,26 @@ static void AFX_CDECL _AfxTrace(LPCTSTR lpszFormat, ...)
 
 #endif // _AfxTrace
 
+static int GetMapIndex(int iValue, const int* map, int iCount)
+{
+	int i = 0;
+	for (; i < iCount; i++)
+	{
+		if (map[i*2 + 0] >= iValue)
+		{
+			if (map[i*2 + 0] > iValue)
+				--i;
+
+			break;
+		}
+	}
+
+	if ((i == -1) || (i == iCount))
+		return i;
+
+	return (i*2/* + 1*/);
+}
+
 FUNcubeDongle::FUNcubeDongle()
 	: m_iDeviceIndex(-1)
 	, m_pCaptureDevice(NULL)
@@ -38,7 +58,7 @@ FUNcubeDongle::FUNcubeDongle()
 	, m_pNotifications(NULL)
 	, m_hNotificationEvent(INVALID_HANDLE_VALUE)
 	, m_hQuitEvent(INVALID_HANDLE_VALUE)
-	, m_iCaptureNotificationCount(10)
+	, m_iCaptureNotificationCount(10*2)
 	, m_dwReadCursorPosition(0)
 	, m_pCaptureThread(NULL)
 	, m_nItemSize(0)
@@ -212,6 +232,8 @@ bool FUNcubeDongle::Create(LPCTSTR strHint /*= NULL*/)
 
 	float fIOffset = 0, fQOffset = 0, fGain = 1.0f, fPhase = 0;
 	bool bSetDCOffset = false, bSetIQOffset = false;
+	float fMixerGain = 0.0f, fIFGain1 = 0.0f;
+	bool bSetMixerGain = false, bSetIFGain1 = false;
 
 	CString str(strHint);
 	if ((str.GetLength() >= 3) && (str.Left(3).CompareNoCase(_T("fcd")) == 0))
@@ -220,27 +242,84 @@ bool FUNcubeDongle::Create(LPCTSTR strHint /*= NULL*/)
 	CStringArray array;
 	if (Teh::Utils::Tokenise(str, array, _T(' ')))
 	{
-		m_iDeviceIndex = _tstoi(array[0]);
-		if ((m_iDeviceIndex == 0) && (array[0] != _T("0")))
+		int iArgIndex = 0;
+		for (INT_PTR i = 0; i < array.GetCount(); ++i)
 		{
-			m_iDeviceIndex = -1;
-			// FIXME: By name
-		}
+			CString strPart(array[i]);
+			int iIndex = strPart.Find(_T('='));
+			if (iIndex == -1)
+			{
+				if (iArgIndex == 0)
+				{
+					m_iDeviceIndex = _tstoi(strPart);
+					if ((m_iDeviceIndex == 0) && (strPart != _T("0")))
+					{
+						m_iDeviceIndex = -1;
+						// FIXME: By name
+					}
+				}
 
-		if (array.GetCount() > 1)
-		{
-			bSetDCOffset = true;
-			fIOffset = _tstof(array[1]);
+				if (iArgIndex == 1)
+				{
+					bSetDCOffset = true;
+					fIOffset = _tstof(strPart);
+				}
+				if (iArgIndex == 2)
+					fQOffset = _tstof(strPart);
+				if (iArgIndex == 3)
+				{
+					bSetIQOffset = true;
+					fGain = _tstof(strPart);
+				}
+				if (iArgIndex == 4)
+					fPhase = _tstof(strPart);
+
+				++iArgIndex;
+			}
+			else
+			{
+				if ((iIndex + 1) == strPart.GetLength())
+					continue;
+
+				CString strArg(strPart.Mid(iIndex + 1));
+				strPart = strPart.Left(iIndex).MakeLower();
+				float f = (float)_tstof(strArg);
+				if (strPart == _T("i"))
+				{
+					bSetDCOffset = true;
+					fIOffset = f;
+				}
+				else if (strPart == _T("q"))
+				{
+					bSetDCOffset = true;
+					fQOffset = f;
+				}
+				else if (strPart == _T("gain"))
+				{
+					bSetIQOffset = true;
+					fGain = f;
+				}
+				else if (strPart == _T("phase"))
+				{
+					bSetIQOffset = true;
+					fPhase = f;
+				}
+				else if (strPart == _T("ifgain1"))
+				{
+					bSetIFGain1 = true;
+					fIFGain1 = f;
+				}
+				else if (strPart == _T("mixergain"))
+				{
+					bSetMixerGain = true;
+					fMixerGain = f;
+				}
+				else
+				{
+					AfxTrace(_T("Unknown FCD parameter key: ") + strPart);
+				}
+			}
 		}
-		if (array.GetCount() > 2)
-			fQOffset = _tstof(array[2]);
-		if (array.GetCount() > 3)
-		{
-			bSetIQOffset = true;
-			fGain = _tstof(array[3]);
-		}
-		if (array.GetCount() > 4)
-			fPhase = _tstof(array[4]);
 	}
 
 	if (true && (m_iDeviceIndex == -1))	// FIXME: By name
@@ -314,6 +393,8 @@ bool FUNcubeDongle::Create(LPCTSTR strHint /*= NULL*/)
 		m_strLastError = _T("Failed to set notifications");
 		return false;
 	}
+
+	m_dwReadCursorPosition = 0;
 
 	///////////////////////////////////////////////////////////////////////////
 
@@ -417,17 +498,63 @@ bool FUNcubeDongle::Create(LPCTSTR strHint /*= NULL*/)
 #define FCD_HID_CMD_SET_DC_CORR      106
 // Send with 2 byte signed phase correction followed by 2 byte unsigned gain correction. 0 is the default centre value for phase correction, 32768 is the default centre value for gain.
 #define FCD_HID_CMD_SET_IQ_CORR      108
+#define FCD_HID_CMD_SET_MIXER_GAIN   114
+#define FCD_HID_CMD_SET_IF_GAIN1     117
+
+typedef enum
+{
+	TMGE_P4_0DB		= 0,
+	TMGE_P12_0DB	= 1
+} TUNERMIXERGAINENUM;
+
+typedef enum
+{
+	TIG1E_N3_0DB	= 0,
+	TIG1E_P6_0DB	= 1
+} TUNERIFGAIN1ENUM;
 
 	if (bSetDCOffset)
 	{
 		/*unsigned */short iq[] = { min(32767, (fIOffset * 32768)), min(32767, (fQOffset * 32768)) };	// Matching FCHid
 		HIDWriteCommand(FCD_HID_CMD_SET_DC_CORR, (unsigned char*)iq, sizeof(iq));
 	}
-	
+
 	if (bSetIQOffset)
 	{
 		/*unsigned */short pg[] = { min(32767, (fPhase * 32768)), (unsigned short)min(65535, (fGain * 32768)) };
 		HIDWriteCommand(FCD_HID_CMD_SET_IQ_CORR, (unsigned char*)pg, sizeof(pg));
+	}
+
+	if (bSetMixerGain)
+	{
+		const static int map[] = {
+			04, TMGE_P4_0DB,
+			12, TMGE_P12_0DB
+		};
+		
+		int iCount = sizeof(map)/sizeof(map[0]) / 2;
+		int i = GetMapIndex(CLAMP(4, (int)fMixerGain, 12), map, iCount);
+		if ((i >= 0) && (i < iCount))
+		{
+			unsigned char u = (unsigned char)map[i + 1];
+			HIDWriteCommand(FCD_HID_CMD_SET_MIXER_GAIN, &u, 1);
+		}
+	}
+
+	if (bSetIFGain1)
+	{
+		const static int map[] = {
+			-3, TIG1E_N3_0DB,
+			+6, TIG1E_P6_0DB
+		};
+		
+		int iCount = sizeof(map)/sizeof(map[0]) / 2;
+		int i = GetMapIndex(CLAMP(-3, (int)fIFGain1, 6), map, iCount);
+		if ((i >= 0) && (i < iCount))
+		{
+			unsigned char u = (unsigned char)map[i + 1];
+			HIDWriteCommand(FCD_HID_CMD_SET_IF_GAIN1, &u, 1);
+		}
 	}
 
 	///////////////////////////////////////////////////////////////////////////
@@ -439,7 +566,8 @@ bool FUNcubeDongle::Create(LPCTSTR strHint /*= NULL*/)
 	m_recv_samples_per_packet -= (m_recv_samples_per_packet % 512);
 
 	m_nItemSize = wfx.nBlockAlign * m_recv_samples_per_packet;
-	m_nBufferSize = BUFFER_LENGTH *  wfx.nSamplesPerSec;
+	m_nBufferSize = BUFFER_LENGTH * wfx.nSamplesPerSec;
+	ASSERT(m_nBufferSize * wfx.nBlockAlign == m_descBuffer.dwBufferBytes);
 	m_pAudioBuffer = new BYTE[m_descBuffer.dwBufferBytes];
 	ZeroMemory(m_pAudioBuffer, m_descBuffer.dwBufferBytes);
 	m_nBufferStart = 0;
@@ -452,6 +580,11 @@ bool FUNcubeDongle::Create(LPCTSTR strHint /*= NULL*/)
 	m_pCaptureThread->ResumeThread();
 
 	//WaitForSingleObject(m_hCaptureThreadReady, INFINITE);
+
+	if (m_fileDump.m_hFile != CFile::hFileNull)
+		m_fileDump.Close();
+
+	//m_fileDump.Open(_T("W:\\fcd.pcm"), CFile::modeCreate | CFile::modeWrite);
 
 	return true;
 }
@@ -479,14 +612,18 @@ bool FUNcubeDongle::Start()
 	m_nBufferStart = 0;
 	m_nBufferItems = 0;
 
-	m_pCaptureBuffer->GetCurrentPosition(NULL, &m_dwReadCursorPosition);
-
+	DWORD dwCaptureCursor;
+AfxTrace(_T("Start: Old read: %lu\n"), m_dwReadCursorPosition);
+	m_pCaptureBuffer->GetCurrentPosition(/*NULL*/&dwCaptureCursor, &m_dwReadCursorPosition);
+AfxTrace(_T("Start: Capture cursor: %lu, read cursor: %lu\n"), dwCaptureCursor, m_dwReadCursorPosition);
 	if (FAILED(m_pCaptureBuffer->Start(DSCBSTART_LOOPING)))
 	{
 		m_strLastError = _T("Failed to start capture buffer");
 
 		return false;
 	}
+
+	m_bRunning = true;
 
 	return true;
 }
@@ -500,9 +637,11 @@ void FUNcubeDongle::Stop()
 
 	m_pCaptureBuffer->Stop();
 
-	m_bSkipNextBlock = true;
+	//m_bSkipNextBlock = true;
 
 	SetEvent(m_hStopEvent);
+
+	m_bRunning = false;
 }
 
 typedef enum
@@ -542,6 +681,7 @@ BOOL FUNcubeDongle::HIDWriteCommand(unsigned __int8 u8Cmd, unsigned __int8 *pu8D
 	return au8BufIn[2];
 }
 
+
 bool FUNcubeDongle::SetGain(double dGain)
 {
 	static int mapGains[] = {
@@ -561,9 +701,9 @@ bool FUNcubeDongle::SetGain(double dGain)
 	};
 
 	int iGain = (int)(dGain * 10.0);
-	int i = 0;
+	//int i = 0;
 	int iCount = (sizeof(mapGains)/sizeof(mapGains[0])) / 2;
-	for (; i < iCount; i++)
+	/*for (; i < iCount; i++)
 	{
 		if (mapGains[i*2 + 0] >= iGain)
 		{
@@ -572,14 +712,20 @@ bool FUNcubeDongle::SetGain(double dGain)
 
 			break;
 		}
-	}
+	}*/
+	int i = GetMapIndex(iGain, mapGains, iCount);
 
-	if (i == iCount)
+	if ((i == -1) || (i == iCount))
 		return false;
 
-	unsigned __int8 u8Write = mapGains[i*2 + 1];
+	unsigned __int8 u8Write = mapGains[i + 1];
 
-	return I2B(HIDWriteCommand(110, &u8Write, 1));
+	if (HIDWriteCommand(110, &u8Write, 1) == FALSE)
+		return false;
+
+	m_dGain = (double)mapGains[i] / 10.0;
+
+	return true;
 }
 
 bool FUNcubeDongle::SetAntenna(int iIndex)
@@ -637,7 +783,7 @@ double FUNcubeDongle::SetFreq(double dFreq)
 	m_tuneResult./*target_inter_freq*/target_rf_freq = dFreq;
 	m_tuneResult./*actual_inter_freq*/actual_rf_freq = nFreq;
 
-	return nFreq;
+	return (m_dFreq = nFreq);
 }
 
 double FUNcubeDongle::SetSampleRate(double dSampleRate)
@@ -681,10 +827,10 @@ int FUNcubeDongle::ReadPacket()
 		{
 			lock.Lock();
 		}
-		else if (dw == (WAIT_OBJECT_0 + 2))
+		/*else if (dw == (WAIT_OBJECT_0 + 2))
 		{
 			return -1;
-		}
+		}*/
 		else
 		{
 			ASSERT(FALSE);
@@ -695,8 +841,7 @@ int FUNcubeDongle::ReadPacket()
 
 	if (m_nBufferItems < m_recv_samples_per_packet)
 	{
-		//AfxTrace(_T("Reading packet after signal, but no items in buffer (start now %lu)\n"), m_nBufferStart);	// FIXME: Why does this happen?
-
+AfxTrace(_T("Reading packet after signal, but no items in buffer (start now %lu)\n"), m_nBufferStart);	// FIXME: Why does this happen?
 		return 0;
 	}
 
@@ -704,7 +849,7 @@ int FUNcubeDongle::ReadPacket()
 	memcpy(m_pBuffer, (m_pAudioBuffer + ((2 * sizeof(short)) * m_nBufferStart)), nPart1 * 2 * sizeof(short));
 	UINT nResidual = m_recv_samples_per_packet - nPart1;
 	if (nResidual > 0)
-		memcpy(m_pBuffer + (2 * nPart1), m_pAudioBuffer, nResidual * 2 * sizeof(short));
+		memcpy(m_pBuffer + (nPart1 * 2), m_pAudioBuffer, nResidual * 2 * sizeof(short));	// short* pointer, so "* sizeof(short)" not necessary in pointer offset
 
 	m_nSamplesReceived += m_recv_samples_per_packet;
 
@@ -726,6 +871,9 @@ int FUNcubeDongle::ReadPacket()
 
 	//AfxTrace(_T("Read packet: start=%lu, items=%lu\n"), m_nBufferStart, m_nBufferItems);
 
+	if (m_fileDump.m_hFile != CFile::hFileNull)
+		m_fileDump.Write(m_pBuffer, m_recv_samples_per_packet * 2 * sizeof(short));
+
 	return m_recv_samples_per_packet;
 }
 
@@ -740,7 +888,7 @@ UINT FUNcubeDongle::CaptureThreadProc()
 
 	CSingleLock lock(&m_cs, FALSE);
 
-	LPBYTE pBuffer = new BYTE[dwSeparation];
+	LPBYTE pBuffer = new BYTE[/*dwSeparation*/m_descBuffer.dwBufferBytes];
 
 	//while (((nCount == 0) && (SignalObjectAndWait(m_hCaptureThreadReady, m_hNotificationEvent, INFINITE, FALSE) == WAIT_OBJECT_0)) ||
 	//		((nCount > 0) && (WaitForSingleObject(m_hNotificationEvent, INFINITE) == WAIT_OBJECT_0)))
@@ -773,23 +921,81 @@ UINT FUNcubeDongle::CaptureThreadProc()
 			continue;
 		}
 
+		////////////////
+
+		DWORD dwCapturePos, dwReadPos;
+		if (FAILED(m_pCaptureBuffer->GetCurrentPosition(&dwCapturePos, &dwReadPos)))
+		{
+			lock.Unlock();
+			ASSERT(FALSE);
+			break;
+		}
+
+		LONG lLockSize = dwReadPos - m_dwReadCursorPosition;
+		if (lLockSize < 0)
+			lLockSize += m_descBuffer.dwBufferBytes;
+
+		lLockSize -= (lLockSize % dwSeparation);
+
+		if (lLockSize == 0)
+		{
+			lock.Unlock();
+//AfxTrace(_T("Zero lock size: capture: %lu, read: %lu, last read: %lu\n"), dwCapturePos, dwReadPos, m_dwReadCursorPosition);
+			continue;
+		}
+if (lLockSize % (2 * sizeof(short)))
+{
+	AfxTrace(_T("Lock size not divisible by sample size: %lu, cap: %lu, read: %lu, pos: %lu\n"), lLockSize, dwCapturePos, dwReadPos, m_dwReadCursorPosition);
+}
+		////////////////
+
 		LPVOID p1, p2;
 		DWORD dw1, dw2;
 
 		++m_nBufferLockCount;
-
-		if ((m_bSkipNextBlock == false) &&
-			SUCCEEDED(m_pCaptureBuffer->Lock((/*m_dwReadCursorPosition + */dwSeparation * (m_nBufferLockCount - 1)) % m_descBuffer.dwBufferBytes, dwSeparation, &p1, &dw1, &p2, &dw2, 0)))
+DWORD dwEnd = (m_dwReadCursorPosition + lLockSize) % m_descBuffer.dwBufferBytes;
+if (dwCapturePos == m_dwReadCursorPosition)
+{
+	AfxTrace(_T("Error 3: cap: %lu, read: %lu, pos: %lu, len: %lu\n"), dwCapturePos, dwReadPos, m_dwReadCursorPosition, lLockSize);
+}
+else if (dwReadPos > m_dwReadCursorPosition)
+{
+	if ((dwEnd > dwReadPos) || (dwEnd < m_dwReadCursorPosition))
+	{
+		AfxTrace(_T("Error 1: cap: %lu, read: %lu, pos: %lu, len: %lu\n"), dwCapturePos, dwReadPos, m_dwReadCursorPosition, lLockSize);
+	}
+}
+else if (dwReadPos < m_dwReadCursorPosition)
+{
+	if ((dwEnd > dwReadPos) && (dwEnd < m_dwReadCursorPosition))
+	{
+		AfxTrace(_T("Error 2: cap: %lu, read: %lu, pos: %lu, len: %lu\n"), dwCapturePos, dwReadPos, m_dwReadCursorPosition, lLockSize);
+	}
+}
+		if (//(m_bSkipNextBlock == false) &&
+			SUCCEEDED(m_pCaptureBuffer->Lock(m_dwReadCursorPosition/* + *//*dwSeparation * (m_nBufferLockCount - 1)) % m_descBuffer.dwBufferBytes*/, /*dwSeparation*/lLockSize, &p1, &dw1, &p2, &dw2, 0)))
 		{
 			memcpy(pBuffer, p1, dw1);
+			m_dwReadCursorPosition = (m_dwReadCursorPosition + dw1) % m_descBuffer.dwBufferBytes;
+
 			if (dw2)
+			{
+//AfxTrace(_T("Double lock: cap: %lu, read: %lu, pos: %lu, len: %lu -> %lu + %lu\n"), dwCapturePos, dwReadPos, m_dwReadCursorPosition, lLockSize, dw1, dw2);
 				memcpy(pBuffer + dw1, p2, dw2);
+				m_dwReadCursorPosition = (m_dwReadCursorPosition + dw2) % m_descBuffer.dwBufferBytes;
+			}
 
 			m_pCaptureBuffer->Unlock(p1, dw1, p2, dw2);
+if ((dw1 + dw2) != lLockSize)
+{
+AfxTrace(_T("Lock size error: cap: %lu, read: %lu, pos: %lu, len: %lu -> %lu + %lu\n"), dwCapturePos, dwReadPos, m_dwReadCursorPosition, lLockSize, dw1, dw2);
+}
+			//if (m_fileDump.m_hFile != CFile::hFileNull)
+			//	m_fileDump.Write(pBuffer, (dw1 + dw2));
 
-			UINT nRemaining = min(m_nBufferSize - m_nBufferItems, dwSeparation / (2 * sizeof(short)));
+			UINT nRemaining = min(m_nBufferSize - m_nBufferItems, /*dwSeparation*/lLockSize / (2 * sizeof(short)));
 
-			if (nRemaining > 0)
+			if ((m_bSkipNextBlock == false) && (nRemaining > 0))
 			{
 				//AfxTrace(_T("Notification: count=%lu, start=%lu, items=%lu\n"), nCount, m_nBufferStart, m_nBufferItems);
 
@@ -802,15 +1008,28 @@ UINT FUNcubeDongle::CaptureThreadProc()
 
 				memcpy(p, pBuffer, nSize1 * 2 * sizeof(short));
 
+				//if (m_fileDump.m_hFile != CFile::hFileNull)
+				//	m_fileDump.Write(pBuffer, nSize1 * 2 * sizeof(short));
+
 				UINT nResidual = nRemaining - nSize1;
 				if (nResidual > 0)
-					memcpy(m_pAudioBuffer, pBuffer + nSize1 * 2 * sizeof(short), nResidual * 2 * sizeof(short));
+				{
+					memcpy(m_pAudioBuffer, pBuffer + (nSize1 * 2 * sizeof(short)), nResidual * 2 * sizeof(short));
+
+					//if (m_fileDump.m_hFile != CFile::hFileNull)
+					//	m_fileDump.Write(pBuffer + (nSize1 * 2 * sizeof(short)), nResidual * 2 * sizeof(short));
+				}
 
 				m_nBufferItems += nRemaining;
 			}
-			else
+			else if (m_bSkipNextBlock)
 			{
-				//AfxTrace(_T("OVERRUN\n"));	// FIXME: Overrun
+AfxTrace(_T("Skipping block: cap: %lu, read: %lu, pos: %lu, len: %lu -> %lu + %lu\n"), dwCapturePos, dwReadPos, m_dwReadCursorPosition, lLockSize, dw1, dw2);
+				m_bSkipNextBlock = false;
+			}
+			else// if (nRemaining == 0)
+			{
+AfxTrace(_T("OVERRUN: Remaining: %lu\n"), nRemaining);	// FIXME: Overrun
 			}
 
 			lock.Unlock();
@@ -819,8 +1038,8 @@ UINT FUNcubeDongle::CaptureThreadProc()
 		}
 		else
 		{
-			m_bSkipNextBlock = false;
-
+			//m_bSkipNextBlock = false;
+AfxTrace(_T("Failed to lock\n"));
 			lock.Unlock();
 		}
 	}

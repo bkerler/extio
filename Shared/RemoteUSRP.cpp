@@ -613,7 +613,7 @@ double RemoteUSRP::SetFreq(double dFreq)
 	return m_tuneResult./*actual_inter_freq*/actual_rf_freq + m_tuneResult.actual_dsp_freq;
 }
 
-bool RemoteUSRP::CopyState(IUSRP* pOther)	// FIXME: Remote address
+bool RemoteUSRP::CopyState(IUSRPConfiguration* pOther)	// FIXME: Remote address
 {
 	if (pOther == NULL)
 		return false;

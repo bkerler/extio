@@ -42,16 +42,17 @@ private:
 	CWinThread* m_pCaptureThread;
 	int m_iCaptureNotificationCount;
 	DWORD m_dwReadCursorPosition;
-	UINT m_nItemSize;
+	UINT m_nItemSize;	// Bytes in packet
 	HANDLE m_hStopEvent;
 	HANDLE m_hPacketEvent;
-	UINT m_nBufferItems;
+	UINT m_nBufferItems;	// I/Q samples in buffer
 	LPBYTE m_pAudioBuffer;
-	UINT m_nBufferStart;
-	UINT m_nBufferSize;
+	UINT m_nBufferStart;// I/Q sample offset to start in audio buffer
+	UINT m_nBufferSize;	// I/Q samples in audio buffer
 	UINT m_nBufferLockCount;
 	bool m_bSkipNextBlock;
 	HANDLE m_hHIDRead, m_hHIDWrite;
+	CFile m_fileDump;
 public:
 	virtual inline double GetSampleRate() const
 	{
