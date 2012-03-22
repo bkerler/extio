@@ -76,6 +76,9 @@ BOOL CappMain::InitInstance()
 	}
 	else
 	{
+		if (m_cli.m_timeDeviceReset.GetTime() != 0)
+			m_server.SetResetTime(&m_cli.m_timeDeviceReset);
+
 		if (m_cli.m_bDeviceSet)
 			m_server.CreateDevice(m_cli.m_strDeviceHint);
 

@@ -76,7 +76,7 @@ int USRPSkeleton::WasTuneSuccessful(/*const uhd::tune_result_t& tuneResult*/)
 	return 0;
 }
 
-bool USRPSkeleton::CopyState(IUSRP* pOther)
+bool USRPSkeleton::CopyState(IUSRPConfiguration* pOther)
 {
 	if (pOther == NULL)
 		return false;

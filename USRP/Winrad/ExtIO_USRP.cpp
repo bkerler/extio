@@ -360,9 +360,13 @@ bool ExtIO_USRP::Open(LPCTSTR strHint /*= NULL*/, LPCTSTR strAddress /*= NULL*/)
 
 	if (m_bForceSampleRateUpdate)
 	{
-		if (dPrevSampleRate != GetSampleRate())
+		if (/*(m_bForceSampleRateUpdate) || */(dPrevSampleRate != GetSampleRate()))
 		{
 			AfxTrace(_T("Sample rate has changed since last reported - notifying...\n"));
+
+			CString str;
+			str.Format(_T("Notifying of sample rate change: %.0f -> %.0f"), dPrevSampleRate, GetSampleRate());
+			m_pDialog->_Log(str);
 
 			Signal(CS_HWSRChange);
 		}

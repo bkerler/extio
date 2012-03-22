@@ -56,7 +56,7 @@ public:
 	//virtual SetClock()=0;
 	virtual int ReadPacket()=0;
 public:
-	virtual bool CopyState(IUSRP* pOther)=0;
+	virtual bool CopyState(IUSRPConfiguration* pOther)=0;
 	virtual void ResetStats()=0;
 	virtual int WasTuneSuccessful()=0;
 public:
@@ -119,7 +119,7 @@ public:
 	//virtual SetClock();
 	virtual int ReadPacket();
 */public:
-	virtual bool CopyState(IUSRP* pOther);
+	virtual bool CopyState(IUSRPConfiguration* pOther);
 	virtual void ResetStats();
 	virtual int WasTuneSuccessful();
 public:
@@ -219,7 +219,7 @@ public:
 	//virtual SetClock();
 	virtual int ReadPacket();
 /*public:
-	virtual bool CopyState(IUSRP* pOther);
+	virtual bool CopyState(IUSRPConfiguration* pOther);
 	virtual void ResetStats();
 	virtual int WasTuneSuccessful();
 public:
@@ -358,7 +358,7 @@ public:	// USRP
 public:
 	CString GetExtraInfo() const;
 public:
-	bool CopyState(IUSRP* pOther);
+	bool CopyState(IUSRPConfiguration* pOther);
 	void ResetStats();
 public:	// ClientSocketCallback
 	void OnCommand(CsocketClient* pSocket, const CString& str);
