@@ -5,7 +5,10 @@
 #include "socketClientWaitable.h"
 #include "BorIP.h"
 #include "MemoryUSRP.h"
-#include "FUNcubeDongle.h"
+//#include "FUNcubeDongle.h"
+//#include "rtl2832.h"
+
+#include "PluginFactory.h"
 
 #define REGISTRY_PROFILE_SECTION	m_strSerial // _T("USRP ExtIO")
 #include <TehBase\TehAfxRegistryProfile.h>
@@ -44,9 +47,9 @@ ExtIO_USRP::ExtIO_USRP()
 {
 	ZERO_MEMORY(m_lIFLimits);
 
-	m_dSampleRate = 250000.0;
+	m_dSampleRate = /*25000*/0.0;
 	m_dGain = 0.45;
-	m_dFreq = 50000000.0;
+	m_dFreq = /*5000000*/0.0;
 
 	ZERO_MEMORY(m_addrDest);
 	m_addrDest.sin_family = AF_INET;
@@ -225,12 +228,14 @@ bool ExtIO_USRP::Open(LPCTSTR strHint /*= NULL*/, LPCTSTR strAddress /*= NULL*/)
 	if (m_bRemoteDevice == FALSE)
 	{
 		int iIndex = -1;
-		bool bFCD = false;
+		bool bFCD = false, bRTL = false;
 		CStringArray array;
 		if (Teh::Utils::Tokenise(m_strDevice, array, _T(' ')))
 		{
 			if (array[0].CompareNoCase(_T("fcd")) == 0)
 				bFCD = true;
+			else if (array[0].CompareNoCase(_T("rtl")) == 0)
+				bRTL = true;
 			else
 			{
 				iIndex = _tstoi(array[0]);
@@ -243,19 +248,29 @@ bool ExtIO_USRP::Open(LPCTSTR strHint /*= NULL*/, LPCTSTR strAddress /*= NULL*/)
 		{
 			m_pDialog->_Log(_T("Creating FUNcube Dongle device..."));
 
-			m_pUSRP = new FUNcubeDongle();
+			//m_pUSRP = new FUNcubeDongle();
+			m_pUSRP = PF_CREATE(FUNcubeDongle);
+		}
+		else if (bRTL)
+		{
+			m_pDialog->_Log(_T("Creating rtl2832 device..."));
+
+			//m_pUSRP = new rtl2832();
+			m_pUSRP = PF_CREATE(rtl2832);
 		}
 		else if (iIndex > -1)
 		{
 			m_pDialog->_Log(_T("Creating legacy device..."));
 
-			m_pUSRP = new LegacyUSRP();
+			//m_pUSRP = new LegacyUSRP();
+			m_pUSRP = PF_CREATE(LegacyUSRP);
 		}
 		else
 		{
 			m_pDialog->_Log(_T("Creating UHD device..."));
 
-			m_pUSRP = new USRP();
+			//m_pUSRP = new USRP();
+			m_pUSRP = PF_CREATE(USRP);
 		}
 	}
 	else
@@ -268,9 +283,17 @@ bool ExtIO_USRP::Open(LPCTSTR strHint /*= NULL*/, LPCTSTR strAddress /*= NULL*/)
 
 		m_pDialog->_Log(_T("Creating remote device..."));
 
-		RemoteUSRP* pUSRP = new RemoteUSRP(RUNTIME_CLASS(CsocketClientWaitable));
+		//RemoteUSRP* pUSRP = new RemoteUSRP(RUNTIME_CLASS(CsocketClientWaitable));
+		RemoteUSRP* pUSRP = dynamic_cast<RemoteUSRP*>(PF_CREATE(RemoteUSRP));
+		pUSRP->SetSocketRuntimeClass(RUNTIME_CLASS(CsocketClientWaitable));
 		pUSRP->SetRemoteAddress(m_strAddress);
 		m_pUSRP = pUSRP;
+	}
+
+	if (m_pUSRP == NULL)
+	{
+		m_pDialog->_Log(_T("Device factory failed"));
+		return false;
 	}
 
 	///////////////////////////////////////////////////////////////////////////
@@ -341,6 +364,18 @@ bool ExtIO_USRP::Open(LPCTSTR strHint /*= NULL*/, LPCTSTR strAddress /*= NULL*/)
 
 	/////////////////////////////////////
 
+	if (m_dSampleRate == 0)
+	{
+		m_dSampleRate = m_pUSRP->GetSampleRate();
+		if (m_dSampleRate <= 0)
+		{
+			m_dSampleRate = 250000;
+			m_pDialog->_Log(_T("Using default sampling rate: ") + Teh::Utils::ToString(m_dSampleRate));
+		}
+		else
+			m_pDialog->_Log(_T("Using device's current sampling rate: ") + Teh::Utils::ToString(m_dSampleRate));
+	}
+
 	//if (m_pUSRP->SetSampleRate(m_dSampleRate) <= 0)	// Must be called as GetHWSR will be called next
 	if (SetSampleRate(m_dSampleRate) == false)
 	{
@@ -354,7 +389,20 @@ bool ExtIO_USRP::Open(LPCTSTR strHint /*= NULL*/, LPCTSTR strAddress /*= NULL*/)
 	// So UI gets correct value
 	m_pUSRP->SetDesiredGain(m_dGain);
 	m_pUSRP->SetDesiredAntenna(m_strAntenna);
-	m_pUSRP->SetDesiredFrequency(m_dFreq);
+
+	if (m_dFreq == 0)
+	{
+		m_dFreq = m_pUSRP->GetFreq();
+		if (m_dFreq <= 0)
+			m_dFreq = 0;
+		else
+			m_pDialog->_Log(_T("Using device's current frequency: ") + Teh::Utils::ToString(m_dFreq));
+	}
+
+	if (m_dFreq > 0)
+		m_pUSRP->SetDesiredFrequency(m_dFreq);
+	else
+		m_pDialog->_Log(_T("Not setting initial frequency"));
 
 	m_pDialog->_CreateUI();
 
@@ -396,10 +444,12 @@ void ExtIO_USRP::Close()
 	{
 		m_pDialog->_Log(_T("Saving settings for: ") + m_strSerial);
 
-		SAVE_INT(m_dFreq);
+		if (m_dFreq > 0)
+			SAVE_INT(m_dFreq);
 		SAVE_FLOAT(m_dGain);
 		SAVE_STRING(m_strAntenna);
-		SAVE_INT(m_dSampleRate);
+		if (m_dSampleRate > 0)
+			SAVE_INT(m_dSampleRate);
 
 		SAVE_INT(m_bUseOffset);
 		SAVE_INT(m_lOffset);
@@ -426,6 +476,12 @@ void ExtIO_USRP::Close()
 
 bool ExtIO_USRP::SetSampleRate(double dSampleRate)
 {
+	if (dSampleRate <= 0)
+	{
+		m_pDialog->_Log(_T("Attempting to set invalid sample rate: ") + Teh::Utils::ToString(dSampleRate));
+		return false;
+	}
+
 	m_dSampleRate = dSampleRate;
 
 	if (m_pUSRP == NULL)
@@ -561,7 +617,7 @@ int ExtIO_USRP::Start()
 
 	bool bResult = true;
 retry_start:
-	if (m_pUSRP->SetSampleRate(m_dSampleRate) <= 0)
+	if ((m_dSampleRate > 0) && (m_pUSRP->SetSampleRate(m_dSampleRate) <= 0))
 	{
 		m_pDialog->_Log(_T("While setting sample rate: ") + m_pUSRP->GetLastError());
 		bResult = false;
@@ -576,7 +632,7 @@ retry_start:
 		m_pDialog->_Log(_T("While setting antenna: ") + m_pUSRP->GetLastError());
 		bResult = false;
 	}
-	if (m_pUSRP->SetFreq(m_dFreq) < 0)	// Set here the frequency of the controlled hardware to LOfreq
+	if ((m_dFreq > 0) && (m_pUSRP->SetFreq(m_dFreq) < 0))	// Set here the frequency of the controlled hardware to LOfreq
 	{
 		m_pDialog->_Log(_T("While setting frequency: ") + m_pUSRP->GetLastError());
 		bResult = false;

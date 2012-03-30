@@ -94,6 +94,7 @@ BEGIN_MESSAGE_MAP(CdialogExtIO, CDialog)
 	ON_WM_SYSCOMMAND()
 	ON_BN_CLICKED(IDC_BUTTON_ABOUT, &CdialogExtIO::OnBnClickedButtonAbout)
 	ON_BN_CLICKED(IDC_CHECK_RELAY_AS_BORIP, &CdialogExtIO::OnBnClickedCheckRelayAsBorip)
+	ON_BN_CLICKED(IDC_BUTTON_SHOW_CUSTOM_DEVICE_CONFIG, &CdialogExtIO::OnBnClickedButtonShowCustomDeviceConfig)
 END_MESSAGE_MAP()
 
 // CdialogExtIO message handlers
@@ -394,9 +395,11 @@ void CdialogExtIO::_CreateUI()
 	m_cntrlCombo_SampleRate.ResetContent();
 
 	int iSelected = -1;
-	for (int i = 4, j = 0; i <= 256; i *= 2, ++j)
+	for (int i = /*4*/1, j = 0; i <= 256; i *= 2, ++j)
 	{
 		double d = (pUSRP->GetMasterClock() / (double)i);
+
+		// FIXME: Skip if above maximum sample rate (create params struct: freq/gain/rate ranges)
 
 		if (pUSRP->GetSampleRate() == d)
 			iSelected = j;
@@ -613,7 +616,7 @@ void CdialogExtIO::OnDestroy()
 
 void CdialogExtIO::OnHScroll(UINT nSBCode, UINT nPos, CScrollBar* pScrollBar)
 {
-	if (pScrollBar == (CScrollBar*)&m_cntrlSlider_Gain)
+	if (pScrollBar == (CScrollBar*)&m_cntrlSlider_Gain)	// FIXME: Ignore dupes: SB_THUMBTRACK, SB_PAGELEFT, SB_PAGERIGHT, etc
 	{
 		int iPos = m_cntrlSlider_Gain.GetPos();
 
@@ -1340,4 +1343,9 @@ void CdialogExtIO::OnBnClickedCheckRelayAsBorip()
 		m_pUSRP->RelayAsBorIP(false);
 		_Log(_T("Relaying raw"));
 	}
+}
+
+void CdialogExtIO::OnBnClickedButtonShowCustomDeviceConfig()
+{
+	// TODO: Add your control notification handler code here
 }

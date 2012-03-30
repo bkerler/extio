@@ -67,9 +67,9 @@
 
 #include <atlbase.h>
 
-//#include <uhd/usrp/single_usrp.hpp>
+////#include <uhd/usrp/single_usrp.hpp>
 #include <uhd/usrp/multi_usrp.hpp>
-#include <usrp/libusrp.h>
+//#include <usrp/libusrp.h>
 
 #ifndef _DEBUG
 inline void AFX_CDECL _AfxTrace(LPCTSTR lpszFormat, ...)

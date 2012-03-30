@@ -63,7 +63,7 @@
 #include <TehBase\TehUtils.h>
 
 #include <uhd/usrp/single_usrp.hpp>
-#include <usrp/libusrp.h>
+//#include <usrp/libusrp.h>
 
 #include <complex>
 #include <afxsock.h>

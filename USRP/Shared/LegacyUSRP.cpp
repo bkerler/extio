@@ -1,7 +1,11 @@
 #include <StdAfx.h>
 #include "USRP.h"
 
+#include "PluginFactory.h"
+
 #define DEFAULT_IMAGE	_T("std_2rxhb_2tx.rbf")
+
+IMPLEMENT_PF(LegacyUSRP)
 
 LegacyUSRP::LegacyUSRP()
 	: m_strImage(DEFAULT_IMAGE)

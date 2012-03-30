@@ -43,8 +43,9 @@
 #define IDC_BUTTON2                     3024
 #define IDC_BUTTON_SET_XMLRPC_IF_PORT   3024
 #define IDC_BUTTON_SET_UDP_SOURCE_DESTINATION 3025
-#define IDC_CHECK_RELAY_TO_UDP_SOURCE2  3026
 #define IDC_CHECK_RELAY_AS_BORIP        3026
+#define IDC_BUTTON_SHOW                 3027
+#define IDC_BUTTON_SHOW_CUSTOM_DEVICE_CONFIG 3027
 
 // Next default values for new objects
 // 
@@ -52,7 +53,7 @@
 #ifndef APSTUDIO_READONLY_SYMBOLS
 #define _APS_NEXT_RESOURCE_VALUE        3003
 #define _APS_NEXT_COMMAND_VALUE         32771
-#define _APS_NEXT_CONTROL_VALUE         3026
+#define _APS_NEXT_CONTROL_VALUE         3028
 #define _APS_NEXT_SYMED_VALUE           3002
 #endif
 #endif

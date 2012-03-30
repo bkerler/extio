@@ -1,8 +1,12 @@
 #include "StdAfx.h"
 #include "USRP.h"
 
+#include "PluginFactory.h"
+
 #include "BorIP.h"
 #include "..\Winrad\threadWait.h"	// FIXME: This file is in Shared
+
+IMPLEMENT_PF(RemoteUSRP)
 
 RemoteUSRP::RemoteUSRP(CRuntimeClass* pSocket /*= NULL*/)
 	: m_pClient(NULL)

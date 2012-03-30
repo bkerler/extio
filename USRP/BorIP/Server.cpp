@@ -3,9 +3,10 @@
 
 #include "socketListener.h"
 #include "socketClient.h"
-#include "USRP.h"
+#include "IUSRP.h"
 #include "BorIP.h"
-#include "FUNcubeDongle.h"
+//#include "FUNcubeDongle.h"
+#include "PluginFactory.h"
 
 static void AFX_CDECL _AfxTrace(LPCTSTR lpszFormat, ...)
 {
@@ -353,7 +354,7 @@ void Server::OnCommand(CsocketClient* pSocket, const CString& str)
 		return;
 	}
 
-	if (m_pCallback)
+	if ((m_pCallback) && (str.CompareNoCase(_T("PING")) != 0))
 	{
 		ServerCallback::EVENT event;
 		event.code = ServerCallback::EC_COMMAND;
@@ -625,13 +626,17 @@ bool Server::CreateDevice(LPCTSTR strHint /*= NULL*/)
 
 	m_strLastDeviceHint = strHint;	// Stores regardless of device creation success
 
+	///////////////////////////////////////////////////////
+
 	int iIndex = -1;
-	bool bFCD = false;
+	bool bFCD = false, bRTL = false;
 	CStringArray array;
 	if (Teh::Utils::Tokenise(strHint, array, _T(' ')))
 	{
 		if (array[0].CompareNoCase(_T("fcd")) == 0)
 			bFCD = true;
+		else if (array[0].CompareNoCase(_T("rtl")) == 0)
+			bRTL = true;
 		else
 		{
 			iIndex = _tstoi(array[0]);
@@ -641,11 +646,21 @@ bool Server::CreateDevice(LPCTSTR strHint /*= NULL*/)
 	}
 
 	if (bFCD)
-		m_pUSRP = new FUNcubeDongle();
+		m_pUSRP = PF_CREATE(FUNcubeDongle);
+	else if (bRTL)
+		m_pUSRP = PF_CREATE(rtl2832);
 	else if (iIndex > -1)
-		m_pUSRP = new LegacyUSRP();
+		m_pUSRP = PF_CREATE(LegacyUSRP);
 	else
-		m_pUSRP = new USRP();
+		m_pUSRP = PF_CREATE(USRP);
+
+	if (m_pUSRP == NULL)
+	{
+		Log(_T("Device factory failed"));
+		return false;
+	}
+
+	///////////////////////////////////////////////////////
 
 	CString strFilteredHint(strHint);
 	if (strFilteredHint.IsEmpty())

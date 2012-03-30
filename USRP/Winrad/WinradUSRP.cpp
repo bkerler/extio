@@ -465,7 +465,7 @@ __declspec(dllexport) int __stdcall SetHWLO(long freq)
 
 	ULONG ulFreq = (ULONG)freq;
 
-	//AfxTrace(_T("Setting HW LO: %i\n"), freq);
+	AfxTrace(_T("Setting HW LO: %i\n"), freq);
 
 	int iResult = 0;
 
@@ -489,7 +489,7 @@ __declspec(dllexport) long __stdcall GetHWLO(void)	// Called after Set
 		return 0;
 	}
 
-	//AfxTrace(_T("Getting HW LO...\n"));
+	AfxTrace(_T("Getting HW LO...\n"));
 
 	//return theApp.m_iLO;
 
@@ -515,7 +515,7 @@ __declspec(dllexport) void __stdcall TuneChanged(long freq)
 		return;
 	}
 
-	//AfxTrace(_T("Tune changed: %i\n"), freq);	// Do whatever you want with the information about the new frequency tuned by the user
+	AfxTrace(_T("Tune changed: %i\n"), freq);	// Do whatever you want with the information about the new frequency tuned by the user
 
 	{
 		AFX_MANAGE_STATE(AfxGetStaticModuleState());
@@ -535,7 +535,7 @@ __declspec(dllexport) long __stdcall GetHWSR(void)
 		return 48000;	// Sensible default
 	}
 
-	//AfxTrace(_T("Getting HW sample rate...\n"));	// Only happens once automatically at beginning
+	AfxTrace(_T("Getting HW sample rate...\n"));	// Only happens once automatically at beginning
 
 	//return /*250000*/(long)m_pUSRP->m_desired_sample_rate;	// 64M / decim (min = 250k)
 
