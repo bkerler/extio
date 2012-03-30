@@ -1,6 +1,9 @@
 #include "StdAfx.h"
 #include "FUNcubeDongle.h"
 
+#include "PluginFactory.h"
+#include "Utils.h"
+
 #define FCD_SAMPLE_RATE	96000
 #define BUFFER_LENGTH	1
 
@@ -31,25 +34,7 @@ static void AFX_CDECL _AfxTrace(LPCTSTR lpszFormat, ...)
 
 #endif // _AfxTrace
 
-static int GetMapIndex(int iValue, const int* map, int iCount)
-{
-	int i = 0;
-	for (; i < iCount; i++)
-	{
-		if (map[i*2 + 0] >= iValue)
-		{
-			if (map[i*2 + 0] > iValue)
-				--i;
-
-			break;
-		}
-	}
-
-	if ((i == -1) || (i == iCount))
-		return i;
-
-	return (i*2/* + 1*/);
-}
+IMPLEMENT_PF(FUNcubeDongle)
 
 FUNcubeDongle::FUNcubeDongle()
 	: m_iDeviceIndex(-1)
@@ -262,17 +247,17 @@ bool FUNcubeDongle::Create(LPCTSTR strHint /*= NULL*/)
 				if (iArgIndex == 1)
 				{
 					bSetDCOffset = true;
-					fIOffset = _tstof(strPart);
+					fIOffset = (float)_tstof(strPart);
 				}
 				if (iArgIndex == 2)
-					fQOffset = _tstof(strPart);
+					fQOffset = (float)_tstof(strPart);
 				if (iArgIndex == 3)
 				{
 					bSetIQOffset = true;
-					fGain = _tstof(strPart);
+					fGain = (float)_tstof(strPart);
 				}
 				if (iArgIndex == 4)
-					fPhase = _tstof(strPart);
+					fPhase = (float)_tstof(strPart);
 
 				++iArgIndex;
 			}
@@ -515,13 +500,13 @@ typedef enum
 
 	if (bSetDCOffset)
 	{
-		/*unsigned */short iq[] = { min(32767, (fIOffset * 32768)), min(32767, (fQOffset * 32768)) };	// Matching FCHid
+		/*unsigned */short iq[] = { min(32767, (short)(fIOffset * 32768.0f)), min(32767, (short)(fQOffset * 32768.0f)) };	// Matching FCHid
 		HIDWriteCommand(FCD_HID_CMD_SET_DC_CORR, (unsigned char*)iq, sizeof(iq));
 	}
 
 	if (bSetIQOffset)
 	{
-		/*unsigned */short pg[] = { min(32767, (fPhase * 32768)), (unsigned short)min(65535, (fGain * 32768)) };
+		/*unsigned */short pg[] = { min(32767, (short)(fPhase * 32768.0f)), (unsigned short)min(65535, (unsigned short)(fGain * 32768.0f)) };
 		HIDWriteCommand(FCD_HID_CMD_SET_IQ_CORR, (unsigned char*)pg, sizeof(pg));
 	}
 

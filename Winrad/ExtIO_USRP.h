@@ -1,6 +1,6 @@
 #pragma once
 
-#include "USRP.h"
+#include "IUSRP.h"
 
 //class USRP;
 class CdialogExtIO;

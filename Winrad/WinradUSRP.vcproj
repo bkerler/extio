@@ -44,7 +44,7 @@
 			<Tool
 				Name="VCCLCompilerTool"
 				Optimization="0"
-				AdditionalIncludeDirectories="&quot;C:\Dev\SDK\xmlrpc++\src&quot;;&quot;C:\Users\Balint Seeber\Documents\Visual Studio 2008\Projects\_Source\boost_1_46_1&quot;;D:\Dev\uhd\host\include;..\Shared;&quot;C:\Users\Balint Seeber\Documents\Visual Studio 2008\Projects\USRP\libusrp\usrp\host\include&quot;;C:\Dev\SDK\libusb0\include"
+				AdditionalIncludeDirectories="&quot;C:\Dev\SDK\xmlrpc++\src&quot;;&quot;C:\Users\Balint Seeber\Documents\Visual Studio 2008\Projects\_Source\boost_1_46_1&quot;;D:\Dev\uhd\host\include;..\Shared;&quot;C:\Users\Balint Seeber\Documents\Visual Studio 2008\Projects\USRP\libusrp\usrp\host\include&quot;;C:\Dev\SDK\libusb0\include;C:\Dev\SDK\libusb1\include"
 				PreprocessorDefinitions="WIN32;_WINDOWS;_DEBUG;_USRDLL"
 				MinimalRebuild="true"
 				BasicRuntimeChecks="3"
@@ -67,10 +67,10 @@
 			/>
 			<Tool
 				Name="VCLinkerTool"
-				AdditionalDependencies="uhd.lib psapi.lib libusrp.lib XmlRpc.lib  dsound.lib dxguid.lib setupapi.lib"
+				AdditionalDependencies="uhd.lib psapi.lib libusrp.lib XmlRpc.lib dsound.lib dxguid.lib setupapi.lib libusb-1.0.lib"
 				OutputFile="&quot;C:\Program Files\Sound\HDSDR\ExtIO_USRP.dll&quot;"
 				LinkIncremental="2"
-				AdditionalLibraryDirectories="&quot;C:\Dev\SDK\xmlrpc++\Debug&quot;;D:\Dev\uhd\host\_Build\lib\Debug;&quot;$(ProjectDir)..\$(ConfigurationName)&quot;"
+				AdditionalLibraryDirectories="&quot;C:\Dev\SDK\xmlrpc++\Debug&quot;;D:\Dev\uhd\host\_Build\lib\Debug;&quot;$(ProjectDir)..\$(ConfigurationName)&quot;;&quot;C:\Dev\SDK\libusb-pbatard\Win32\Debug\dll&quot;"
 				ModuleDefinitionFile=".\WinradUSRP.def"
 				GenerateDebugInformation="true"
 				SubSystem="2"
@@ -128,7 +128,7 @@
 				Name="VCCLCompilerTool"
 				Optimization="2"
 				EnableIntrinsicFunctions="true"
-				AdditionalIncludeDirectories="&quot;C:\Dev\SDK\xmlrpc++\src&quot;;&quot;C:\Users\Balint Seeber\Documents\Visual Studio 2008\Projects\_Source\boost_1_46_1&quot;;D:\Dev\uhd\host\include;..\Shared;&quot;C:\Users\Balint Seeber\Documents\Visual Studio 2008\Projects\USRP\libusrp\usrp\host\include&quot;;C:\Dev\SDK\libusb0\include"
+				AdditionalIncludeDirectories="&quot;C:\Dev\SDK\xmlrpc++\src&quot;;&quot;C:\Users\Balint Seeber\Documents\Visual Studio 2008\Projects\_Source\boost_1_46_1&quot;;D:\Dev\uhd\host\include;..\Shared;&quot;C:\Users\Balint Seeber\Documents\Visual Studio 2008\Projects\USRP\libusrp\usrp\host\include&quot;;C:\Dev\SDK\libusb0\include;C:\Dev\SDK\libusb1\include"
 				PreprocessorDefinitions="WIN32;_WINDOWS;NDEBUG;_USRDLL"
 				RuntimeLibrary="2"
 				EnableFunctionLevelLinking="true"
@@ -150,10 +150,10 @@
 			/>
 			<Tool
 				Name="VCLinkerTool"
-				AdditionalDependencies="uhd.lib psapi.lib libusrp.lib XmlRpc.lib  dsound.lib dxguid.lib setupapi.lib"
+				AdditionalDependencies="uhd.lib psapi.lib libusrp.lib XmlRpc.lib dsound.lib dxguid.lib setupapi.lib libusb-1.0.lib"
 				OutputFile="&quot;C:\Program Files\Sound\HDSDR\Release\ExtIO_USRP.dll&quot;"
 				LinkIncremental="1"
-				AdditionalLibraryDirectories="&quot;C:\Dev\SDK\xmlrpc++\Release&quot;;D:\Dev\uhd\host\_Build\lib\Release;&quot;$(ProjectDir)..\$(ConfigurationName)&quot;"
+				AdditionalLibraryDirectories="&quot;C:\Dev\SDK\xmlrpc++\Release&quot;;D:\Dev\uhd\host\_Build\lib\Release;&quot;$(ProjectDir)..\$(ConfigurationName)&quot;;&quot;C:\Dev\SDK\libusb-pbatard\Win32\Release\dll&quot;"
 				ModuleDefinitionFile=".\WinradUSRP.def"
 				GenerateDebugInformation="true"
 				SubSystem="2"
@@ -213,7 +213,7 @@
 				Name="VCCLCompilerTool"
 				Optimization="0"
 				EnableIntrinsicFunctions="true"
-				AdditionalIncludeDirectories="&quot;C:\Dev\SDK\xmlrpc++\src&quot;;&quot;C:\Users\Balint Seeber\Documents\Visual Studio 2008\Projects\_Source\boost_1_46_1&quot;;D:\Dev\uhd\host\include;..\Shared;&quot;C:\Users\Balint Seeber\Documents\Visual Studio 2008\Projects\USRP\libusrp\usrp\host\include&quot;;C:\Dev\SDK\libusb0\include"
+				AdditionalIncludeDirectories="&quot;C:\Dev\SDK\xmlrpc++\src&quot;;&quot;C:\Users\Balint Seeber\Documents\Visual Studio 2008\Projects\_Source\boost_1_46_1&quot;;D:\Dev\uhd\host\include;..\Shared;&quot;C:\Users\Balint Seeber\Documents\Visual Studio 2008\Projects\USRP\libusrp\usrp\host\include&quot;;C:\Dev\SDK\libusb0\include;C:\Dev\SDK\libusb1\include"
 				PreprocessorDefinitions="WIN32;_WINDOWS;NDEBUG;_USRDLL"
 				RuntimeLibrary="2"
 				EnableFunctionLevelLinking="true"
@@ -235,7 +235,7 @@
 			/>
 			<Tool
 				Name="VCLinkerTool"
-				AdditionalDependencies="uhd.lib psapi.lib libusrp.lib XmlRpc.lib  dsound.lib dxguid.lib setupapi.lib"
+				AdditionalDependencies="uhd.lib psapi.lib libusrp.lib XmlRpc.lib dsound.lib dxguid.lib setupapi.lib libusb-1.0.lib"
 				OutputFile="&quot;C:\Program Files\Sound\HDSDR\Release\ExtIO_USRP.dll&quot;"
 				LinkIncremental="1"
 				AdditionalLibraryDirectories="&quot;C:\Dev\SDK\xmlrpc++\Release&quot;;D:\Dev\uhd\host\_Build\lib\RelWithDebInfo;&quot;$(ProjectDir)..\Release&quot;"
@@ -294,6 +294,10 @@
 				>
 			</File>
 			<File
+				RelativePath="..\Shared\IUSRP.cpp"
+				>
+			</File>
+			<File
 				RelativePath="..\Shared\LegacyUSRP.cpp"
 				>
 			</File>
@@ -302,7 +306,23 @@
 				>
 			</File>
 			<File
+				RelativePath="..\Shared\PluginFactory.cpp"
+				>
+			</File>
+			<File
 				RelativePath="..\Shared\RemoteUSRP.cpp"
+				>
+			</File>
+			<File
+				RelativePath="..\Shared\rtl2382-tuner_e4000.cpp"
+				>
+			</File>
+			<File
+				RelativePath="..\Shared\rtl2382.cpp"
+				>
+			</File>
+			<File
+				RelativePath="..\Shared\rtl2832-tuner_fc0013.cpp"
 				>
 			</File>
 			<File
@@ -354,6 +374,10 @@
 				>
 			</File>
 			<File
+				RelativePath="..\Shared\Utils.cpp"
+				>
+			</File>
+			<File
 				RelativePath=".\WinradUSRP.cpp"
 				>
 			</File>
@@ -388,11 +412,35 @@
 				>
 			</File>
 			<File
+				RelativePath="..\Shared\IUSRP.h"
+				>
+			</File>
+			<File
 				RelativePath=".\MemoryUSRP.h"
 				>
 			</File>
 			<File
+				RelativePath="..\Shared\PluginFactory.h"
+				>
+			</File>
+			<File
 				RelativePath=".\Resource.h"
+				>
+			</File>
+			<File
+				RelativePath="..\Shared\rtl2832-i2c.h"
+				>
+			</File>
+			<File
+				RelativePath="..\Shared\rtl2832-tuner_e4000.h"
+				>
+			</File>
+			<File
+				RelativePath="..\Shared\rtl2832-tuner_fc0013.h"
+				>
+			</File>
+			<File
+				RelativePath="..\Shared\rtl2832.h"
 				>
 			</File>
 			<File
@@ -421,6 +469,10 @@
 			</File>
 			<File
 				RelativePath="..\Shared\USRP.h"
+				>
+			</File>
+			<File
+				RelativePath="..\Shared\Utils.h"
 				>
 			</File>
 			<File

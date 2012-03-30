@@ -1,3 +1,10 @@
+- Check all ReadPacket rate generation (like in RTL)
+
+* Use real_rate or rounded? Chipmunks at fractional?
+
+* m_hStopEvent - manual reset (checks in ReadPacket & ThreadProc - probably only rtl code)
+* Set preferred device configution defaults in each CTOR
+
 * Stop must stop (cannot fail, i.e. Remote must not deadlock)
 * Abort sync I/O button
 * Check SetGain against gainRange if (dev) && (min != max != 0)
