@@ -152,6 +152,7 @@ public:
 	USHORT m_usCounter;
 	UINT m_nNetworkOverrun;
 	UINT m_nBufferOverrun;
+	UINT m_nShortPackets;
 	UINT m_nLastSkip;
 	HANDLE m_hAbortPump;
 	UINT64 m_nPacketsReceived;

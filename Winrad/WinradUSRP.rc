@@ -244,7 +244,7 @@ BEGIN
     IDC_CHECK_RELAY_TO_UDP_SOURCE 
                             "Relay raw samples via UDP to, say, a UDP Source block in GRC"
     IDC_EDIT_UDP_SOURCE_DESTINATION 
-                            "IP address of destination where raw samples will be sent via UDP"
+                            "IP[:port] of destination where raw samples will be sent via UDP"
     IDC_CHECK_ENABLE_RELAY_XMLRPC 
                             "Send IF tuning commands to XML-RPC server running at relay destination"
     IDC_EDIT_XMLRPC_IF_PORT "Port on relay destination to which XML-RPC IF tuning commands will be sent"

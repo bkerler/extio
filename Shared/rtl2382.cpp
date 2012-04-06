@@ -12,22 +12,29 @@
 #define DEFAULT_BUFFER_LEVEL	0.5f
 #define WAIT_FUDGE				1.2f
 #define RAW_SAMPLE_SIZE			(1+1)
+#define LIBUSB_TIMEOUT			3000
 
 #define CTRL_IN		(LIBUSB_REQUEST_TYPE_VENDOR | LIBUSB_ENDPOINT_IN)
 #define CTRL_OUT	(LIBUSB_REQUEST_TYPE_VENDOR | LIBUSB_ENDPOINT_OUT)
 
 /* ezcap USB 2.0 DVB-T/DAB/FM stick */
-#define EZCAP_VID	0x0bda
-#define EZCAP_PID	0x2838
+#define EZCAP_VID		0x0bda
+#define EZCAP_PID		0x2838
 
-#define HAMA_VID	0x0bda
-#define HAMA_PID	0x2832
+#define HAMA_VID		0x0bda
+#define HAMA_PID		0x2832
 
-#define BANDWIDTH	8000000
+#define BANDWIDTH		8000000
+#define MAX_RATE		3200000
 
 /* Terratec NOXON DAB/DAB+ USB-Stick */
-#define NOXON_VID	0x0ccd
-#define NOXON_PID	0x00b3
+#define NOXON_VID		0x0ccd
+#define NOXON_PID		0x00b3
+#define NOXON_V2_PID	0x00e0
+
+/* Dexatek Technology Ltd. DK DVB-T Dongle */
+#define DEXATEK_VID		0x1d19
+#define DEXATEK_PID		0x1101
 
 #define CRYSTAL_FREQ	28800000
 
@@ -96,7 +103,7 @@ rtl2832::rtl2832()
 {
 	m_strAntenna = _T("(Default)");
 	m_recv_samples_per_packet = /*READLEN / RAW_SAMPLE_SIZE*/4096;	// Already on 512-byte boundary (after converting to shorts, will still be)
-	m_fpga_master_clock_freq = 3200000;
+	m_fpga_master_clock_freq = MAX_RATE;
 	//m_dSampleRate = m_fpga_master_clock_freq;1000000;	// Use ExtIO default instead
 
 	QueryPerformanceFrequency(&m_liFreq);
@@ -130,12 +137,30 @@ int rtl2832::find_device()
 		return 0;
 	}
 
+	devh = libusb_open_device_with_vid_pid(NULL, DEXATEK_VID, DEXATEK_PID);
+	if (devh > 0) {
+		tuner_type = TUNER_FC0013;
+		m_gainRange = uhd::gain_range_t(-6.3, 19.7, 0.1);
+		m_strName = _T("Dexatek Technology");
+		AfxTrace(_T("Found Dexatek Technology stick with FC0013 tuner\n"));
+		return 0;
+	}
+
 	devh = libusb_open_device_with_vid_pid(NULL, NOXON_VID, NOXON_PID);
 	if (devh > 0) {
 		tuner_type = TUNER_FC0013;
 		m_gainRange = uhd::gain_range_t(-6.3, 19.7, 0.1);
 		m_strName = _T("Terratec NOXON");
-		AfxTrace(_T("Found Terratec NOXON stick with FC0013 tuner\n"));
+		AfxTrace(_T("Found Terratec NOXON (revision 1) stick with FC0013 tuner\n"));
+		return 0;
+	}
+
+	devh = libusb_open_device_with_vid_pid(NULL, NOXON_VID, NOXON_V2_PID);
+	if (devh > 0) {
+		tuner_type = TUNER_E4000;
+		m_gainRange = uhd::gain_range_t(-5, 30, 0.5);
+		m_strName = _T("Terratec NOXON (rev 2)");
+		AfxTrace(_T("Found Terratec NOXON (revision 2) stick with E4000 tuner\n"));
 		return 0;
 	}
 
@@ -172,7 +197,7 @@ int rtl2832::rtl_write_array(uint8_t block, uint16_t addr, uint8_t *array, uint8
  * \returns another LIBUSB_ERROR code on other failures
 */
 		if (r == LIBUSB_ERROR_PIPE)
-			AfxTrace(_T("USB control request no supported\n"));
+			AfxTrace(_T("USB control request not supported\n"));
 		else
 			AfxTrace(_T("Error writing control: %i\n"), r);
 	}
@@ -277,8 +302,8 @@ bool rtl2832::set_samp_rate(uint32_t samp_rate)
 	double real_rate;
 
 	/* check for the maximum rate the resampler supports */
-	if (samp_rate > 3200000)
-		samp_rate = 3200000;
+	if (samp_rate > MAX_RATE)
+		samp_rate = MAX_RATE;
 
 	rsamp_ratio = ((UINT64)CRYSTAL_FREQ * (UINT64)pow((float)2, 22)) / (UINT64)samp_rate;	// CHANGE
 	rsamp_ratio &= ~3;
@@ -369,24 +394,24 @@ bool rtl2832::tuner_init()
 	case TUNER_E4000:
 		if (e4000_Initialize(this) != 0)
 		{
-			AfxTrace(_T("e4000_Initialize failed"));
+			AfxTrace(_T("e4000_Initialize failed\n"));
 			goto tuner_init_error;
 		}
 		if (e4000_SetBandwidthHz(this, BANDWIDTH) != 0)
 		{
-			AfxTrace(_T("e4000_SetBandwidthHz failed"));
+			AfxTrace(_T("e4000_SetBandwidthHz failed\n"));
 			goto tuner_init_error;
 		}
 		break;
 	case TUNER_FC0013:
 		if (FC0013_Open(this) != 0)
 		{
-			AfxTrace(_T("FC0013_Open failed"));
+			AfxTrace(_T("FC0013_Open failed\n"));
 			goto tuner_init_error;
 		}
 		break;
 	default:
-		AfxTrace(_T("No valid tuner available!"));
+		AfxTrace(_T("No valid tuner available!\n"));
 		break;
 	}
 
@@ -496,6 +521,8 @@ bool rtl2832::Create(LPCTSTR strHint /*= NULL*/)
 	m_pUSBBuffer = new BYTE[m_nBufferSize * RAW_SAMPLE_SIZE];
 	ZeroMemory(m_pUSBBuffer, m_nBufferSize * RAW_SAMPLE_SIZE);
 
+	// FIXME: Delay
+
 	m_nItemSize = m_recv_samples_per_packet * 2 * sizeof(short);
 	m_pBuffer = (short*)new BYTE[m_nItemSize];
 
@@ -503,15 +530,17 @@ bool rtl2832::Create(LPCTSTR strHint /*= NULL*/)
 
 	AfxTrace(_T("Configuration:\n")
 		_T("\tRead length (bytes): %lu\n")
-		_T("\tbuffer enabled: %s\n")
-		_T("\tbuffer multiplier: %lu\n")
-		_T("\tbuffer size (samples): %lu\n")
-		_T("\tSPP (samples): %lu\n"),
+		_T("\tBuffer enabled: %s\n")
+		_T("\tBuffer multiplier: %lu\n")
+		_T("\tBuffer size (samples): %lu\n")
+		_T("\tSPP (samples): %lu\n")
+		_T("\tBuffer level: %.1f%%\n"),
 		m_nReadLength,
 		(m_bUseBuffer ? _T("yes") : _T("no")),
 		m_nBufferMultiplier,
 		m_nBufferSize,
-		m_recv_samples_per_packet
+		m_recv_samples_per_packet,
+		(100.0f * m_fBufferLevel)
 	);
 
 	/////////////////////////
@@ -734,7 +763,7 @@ bool rtl2832::SetGain(double dGain)
 
 	unsigned char u8Write = mapGains[i + 1];
 
-	//CSingleLock lock(&m_cs, TRUE);
+	//CSingleLock lock(&m_cs, TRUE);	// Switched off to improve responsiveness (just don't call this from different threads!)
 
 	set_i2c_repeater(1);
 
@@ -743,18 +772,14 @@ bool rtl2832::SetGain(double dGain)
 	  unsigned char u8Read = 0;
 	  if (I2CReadByte(this, 0, RTL2832_E4000_LNA_GAIN_ADDR, &u8Read) != E4000_I2C_SUCCESS)
 	  {
-		  set_i2c_repeater(0);
-		  AfxTrace(_T("I2C read failed"));
-		  return false;
+		  goto gain_failure;
 	  }
 
 	  u8Write |= (u8Read & ~RTL2832_E4000_LNA_GAIN_MASK);
 
 	  if (I2CWriteByte(this, 0, RTL2832_E4000_LNA_GAIN_ADDR, u8Write) != E4000_I2C_SUCCESS)
 	  {
-		  set_i2c_repeater(0);
-		  AfxTrace(_T("I2C write failed"));
-		  return false;
+		  goto gain_failure;
 	  }
 	}
 	else if (tuner_type == TUNER_FC0013)
@@ -764,12 +789,10 @@ bool rtl2832::SetGain(double dGain)
 	int boolEnInChgFlag;  // 0:false,  1:true
 	int intGainShift;
 */
-	  if (fc0013_SetRegMaskBits(this, 0x14, 4, 0, u8Write) != FC0013_I2C_SUCCESS)
-	  {
-		set_i2c_repeater(0);
-		AfxTrace(_T("I2C write failed"));
-		return false;
-	  }
+		if (fc0013_SetRegMaskBits(this, 0x14, 4, 0, u8Write) != FC0013_I2C_SUCCESS)
+		{
+			goto gain_failure;
+		}
 	}
 
 	m_dGain = (double)mapGains[i] / 10.0;
@@ -777,10 +800,15 @@ bool rtl2832::SetGain(double dGain)
 	set_i2c_repeater(0);
 
 	/////////////////////////
-	SetTunerMode();
+	//if (m_auto_tuner_mode)
+		SetTunerMode();
 	/////////////////////////
 
 	return true;
+gain_failure:
+	set_i2c_repeater(0);
+	AfxTrace(_T("I2C write failed\n"));
+	return false;
 }
 
 bool rtl2832::SetAntenna(int iIndex)
@@ -797,7 +825,7 @@ double rtl2832::SetFreq(double dFreq)
 {
 	m_strLastError.Empty();
 
-	//CSingleLock lock(&m_cs, TRUE);
+	//CSingleLock lock(&m_cs, TRUE);	// Switched off to improve responsiveness (just don't call this from different threads!)
 
 	set_i2c_repeater(1);
 
@@ -805,23 +833,19 @@ double rtl2832::SetFreq(double dFreq)
 	case TUNER_E4000:
 		if (e4000_SetRfFreqHz(this, (unsigned long)dFreq) != 0)
 		{
-			set_i2c_repeater(0);
-			AfxTrace(_T("I2C write failed"));
-			return false;
+			goto freq_failure;
 		}
 		break;
 	case TUNER_FC0013:
-		if (FC0013_SetFrequency(this, (unsigned long)(dFreq/1000.0), 8) != 0)
+		if (FC0013_SetFrequency(this, (unsigned long)(dFreq/1000.0), 8) == 0)
 		{
-			set_i2c_repeater(0);
-			AfxTrace(_T("I2C write failed"));
-			return false;
+			goto freq_failure;
 		}
 		break;
 	default:
-	  //break;
-	  set_i2c_repeater(0);
-	  return true;
+		//break;
+		set_i2c_repeater(0);
+		return dFreq;
 	}
 
 	set_i2c_repeater(0);
@@ -832,6 +856,12 @@ double rtl2832::SetFreq(double dFreq)
 	m_dFreq = dFreq;
 
 	return dFreq;
+freq_failure:
+	set_i2c_repeater(0);
+	if (m_strLastError.IsEmpty())
+		m_strLastError = _T("I2C write failed");
+	AfxTrace(_T("I2C write failed\n"));
+	return -1;
 }
 
 double rtl2832::SetSampleRate(double dSampleRate)
@@ -866,7 +896,7 @@ int rtl2832::ReadPacket()
 	if (m_pCaptureThread == NULL)
 	{	
 		int iRead = 0;
-		int res = libusb_bulk_transfer(devh, 0x81, m_pConversionBuffer, m_nReadLength, &iRead, 3000);
+		int res = libusb_bulk_transfer(devh, 0x81, m_pConversionBuffer, m_nReadLength, &iRead, LIBUSB_TIMEOUT);
 		if ((res != 0) && (res != LIBUSB_ERROR_OVERFLOW))
 			return -1;
 
@@ -894,6 +924,8 @@ int rtl2832::ReadPacket()
 		else
 			m_metadata.error_code = uhd::rx_metadata_t::ERROR_CODE_NONE;
 
+		++m_nReadPacketCount;
+
 		return m_recv_samples_per_packet;
 	}
 
@@ -910,7 +942,7 @@ int rtl2832::ReadPacket()
 		LARGE_INTEGER li, liNow;
 		QueryPerformanceCounter(&li);
 
-		DWORD dwWait = (m_bBuffering ? INFINITE : (DWORD)ceil(WAIT_FUDGE * 1000.0f / (float)((m_dSampleRate * RAW_SAMPLE_SIZE) / m_nReadLength)));
+		DWORD dwWait = (m_bBuffering ? INFINITE : (DWORD)ceil(WAIT_FUDGE * 1000.0f / (float)((m_dSampleRate * RAW_SAMPLE_SIZE) / (double)m_nReadLength)));
 		DWORD dw = WaitForMultipleObjects(sizeof(hHandles)/sizeof(hHandles[0]), hHandles, FALSE, /*INFINITE*/dwWait);
 		if (dw == (WAIT_OBJECT_0 + 0))
 		{
@@ -946,7 +978,7 @@ int rtl2832::ReadPacket()
 
 	if (m_nBufferItems < m_recv_samples_per_packet)
 	{
-		AfxTrace(_T("Reading packet after signal, but not enough items in buffer (only %lu, need at least: %lu, start now %lu) [#%lu]\n"), m_nBufferItems, m_recv_samples_per_packet, m_nBufferStart, m_nReadPacketCount);	// FIXME: Why does this happen?
+		AfxTrace(_T("Reading packet after signal, but not enough items in buffer (only %lu, need at least: %lu, start now %lu) [#%lu]\n"), m_nBufferItems, m_recv_samples_per_packet, m_nBufferStart, m_nReadPacketCount);
 		m_bBuffering = true;
 		++m_nBufferUnderrunCount;
 		return 0;
@@ -1026,12 +1058,12 @@ UINT rtl2832::CaptureThreadProc()
 {
 	DWORD dwTime = GetTickCount();
 
-	AfxTrace(_T("Capture threading %04x starting...\n"), GetCurrentThreadId());
+	AfxTrace(_T("Capture thread %04x starting...\n"), GetCurrentThreadId());
 
 	CSingleLock lock(&m_cs, FALSE);
 
 	LPBYTE pBuffer = new BYTE[m_nReadLength];
-
+UINT nTransfers = 0;
 	while (true)
 	{
 		DWORD dw = WaitForSingleObject(m_hStopEvent, 0);
@@ -1041,7 +1073,7 @@ UINT rtl2832::CaptureThreadProc()
 		}
 
 		int lLockSize = 0;
-		int res = libusb_bulk_transfer(devh, 0x81, pBuffer, m_nReadLength, &lLockSize, 3000);
+		int res = libusb_bulk_transfer(devh, 0x81, pBuffer, m_nReadLength, &lLockSize, LIBUSB_TIMEOUT);
 		if (res == LIBUSB_ERROR_OVERFLOW)
 		{
 			AfxTrace(_T("USB overrun\n"));
@@ -1052,10 +1084,11 @@ UINT rtl2832::CaptureThreadProc()
 		}
 		else if (res != 0)
 		{
+AfxTrace(_T("USB error: %i [#%lu]\n"), res, nTransfers);
 			SetEvent(m_hAbortEvent);
-			continue;
+			break;	//continue;
 		}
-
+++nTransfers;
 		if ((UINT)lLockSize < m_nReadLength)
 		{
 			AfxTrace(_T("Short bulk read: %i < %lu\n"), lLockSize, m_nReadLength);
@@ -1114,7 +1147,7 @@ AfxTrace(_T("OVERRUN: Remaining: %lu\n"), nRemaining);	// FIXME: Overrun
 
 	SAFE_DELETE_ARRAY(pBuffer);
 
-	AfxTrace(_T("Capture threading %04x exiting\n"), GetCurrentThreadId());
+	AfxTrace(_T("Capture thread %04x exiting\n"), GetCurrentThreadId());
 
 	return 0;
 }
