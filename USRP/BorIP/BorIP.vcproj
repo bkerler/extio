@@ -45,7 +45,7 @@
 			<Tool
 				Name="VCCLCompilerTool"
 				Optimization="0"
-				AdditionalIncludeDirectories="&quot;C:\Users\Balint Seeber\Documents\Visual Studio 2008\Projects\_Source\boost_1_46_1&quot;;D:\Dev\uhd\host\include;..\Shared;&quot;C:\Users\Balint Seeber\Documents\Visual Studio 2008\Projects\USRP\libusrp\usrp\host\include&quot;;C:\Dev\SDK\libusb0\include;C:\Dev\SDK\libusb1\include"
+				AdditionalIncludeDirectories="&quot;C:\Users\Balint Seeber\Documents\Visual Studio 2008\Projects\_Source\boost_1_46_1&quot;;D:\Dev\uhd\host\include;..\Shared;&quot;C:\Users\Balint Seeber\Documents\Visual Studio 2008\Projects\USRP\libusrp\usrp\host\include&quot;;C:\Dev\SDK\libusb0\include;C:\Dev\SDK\libusb1\include;&quot;..\..\gr-baz\lib&quot;"
 				PreprocessorDefinitions="WIN32;_WINDOWS;_DEBUG"
 				MinimalRebuild="true"
 				BasicRuntimeChecks="3"
@@ -68,9 +68,9 @@
 			/>
 			<Tool
 				Name="VCLinkerTool"
-				AdditionalDependencies="uhd.lib dsound.lib dxguid.lib setupapi.lib libusb-1.0.lib"
+				AdditionalDependencies="uhd.lib dsound.lib dxguid.lib setupapi.lib libusb-1.0.lib librtl2832++.lib"
 				LinkIncremental="2"
-				AdditionalLibraryDirectories="D:\Dev\uhd\host\_Build\lib\Debug;&quot;C:\Dev\SDK\libusb-pbatard\Win32\Debug\dll&quot;"
+				AdditionalLibraryDirectories="D:\Dev\uhd\host\_Build\lib\Debug;&quot;C:\Dev\SDK\libusb-pbatard\Win32\Debug\dll&quot;;&quot;..\..\gr-baz\msvc\librtl2832++\Debug&quot;"
 				GenerateDebugInformation="true"
 				SubSystem="2"
 				TargetMachine="1"
@@ -128,7 +128,7 @@
 				Name="VCCLCompilerTool"
 				Optimization="2"
 				EnableIntrinsicFunctions="true"
-				AdditionalIncludeDirectories="&quot;C:\Users\Balint Seeber\Documents\Visual Studio 2008\Projects\_Source\boost_1_46_1&quot;;D:\Dev\uhd\host\include;..\Shared;&quot;C:\Users\Balint Seeber\Documents\Visual Studio 2008\Projects\USRP\libusrp\usrp\host\include&quot;;C:\Dev\SDK\libusb0\include;C:\Dev\SDK\libusb1\include"
+				AdditionalIncludeDirectories="&quot;C:\Users\Balint Seeber\Documents\Visual Studio 2008\Projects\_Source\boost_1_46_1&quot;;D:\Dev\uhd\host\include;..\Shared;&quot;C:\Users\Balint Seeber\Documents\Visual Studio 2008\Projects\USRP\libusrp\usrp\host\include&quot;;C:\Dev\SDK\libusb0\include;C:\Dev\SDK\libusb1\include;&quot;..\..\gr-baz\lib&quot;"
 				PreprocessorDefinitions="WIN32;_WINDOWS;NDEBUG"
 				MinimalRebuild="false"
 				RuntimeLibrary="2"
@@ -151,9 +151,9 @@
 			/>
 			<Tool
 				Name="VCLinkerTool"
-				AdditionalDependencies="uhd.lib dsound.lib dxguid.lib setupapi.lib libusb-1.0.lib"
+				AdditionalDependencies="uhd.lib dsound.lib dxguid.lib setupapi.lib libusb-1.0.lib librtl2832++.lib"
 				LinkIncremental="1"
-				AdditionalLibraryDirectories="D:\Dev\uhd\host\_Build\lib\Release;&quot;C:\Dev\SDK\libusb-pbatard\Win32\Release\dll&quot;"
+				AdditionalLibraryDirectories="D:\Dev\uhd\host\_Build\lib\Release;&quot;C:\Dev\SDK\libusb-pbatard\Win32\Release\dll&quot;;&quot;..\..\gr-baz\msvc\librtl2832++\Release&quot;"
 				GenerateDebugInformation="true"
 				SubSystem="2"
 				OptimizeReferences="2"
@@ -213,7 +213,7 @@
 				Name="VCCLCompilerTool"
 				Optimization="0"
 				EnableIntrinsicFunctions="true"
-				AdditionalIncludeDirectories="&quot;C:\Users\Balint Seeber\Documents\Visual Studio 2008\Projects\_Source\boost_1_46_1&quot;;D:\Dev\uhd\host\include;..\Shared;&quot;C:\Users\Balint Seeber\Documents\Visual Studio 2008\Projects\USRP\libusrp\usrp\host\include&quot;;C:\Dev\SDK\libusb0\include;C:\Dev\SDK\libusb1\include"
+				AdditionalIncludeDirectories="&quot;C:\Users\Balint Seeber\Documents\Visual Studio 2008\Projects\_Source\boost_1_46_1&quot;;D:\Dev\uhd\host\include;..\Shared;&quot;C:\Users\Balint Seeber\Documents\Visual Studio 2008\Projects\USRP\libusrp\usrp\host\include&quot;;C:\Dev\SDK\libusb0\include;C:\Dev\SDK\libusb1\include;&quot;..\..\gr-baz\lib&quot;"
 				PreprocessorDefinitions="WIN32;_WINDOWS;NDEBUG"
 				MinimalRebuild="false"
 				RuntimeLibrary="2"
@@ -236,9 +236,9 @@
 			/>
 			<Tool
 				Name="VCLinkerTool"
-				AdditionalDependencies="uhd.lib dsound.lib dxguid.lib setupapi.lib libusb-1.0.lib"
+				AdditionalDependencies="uhd.lib dsound.lib dxguid.lib setupapi.lib libusb-1.0.lib librtl2832++.lib"
 				LinkIncremental="1"
-				AdditionalLibraryDirectories="D:\Dev\uhd\host\_Build\lib\RelWithDebInfo"
+				AdditionalLibraryDirectories="D:\Dev\uhd\host\_Build\lib\RelWithDebInfo;&quot;..\..\gr-baz\msvc\librtl2832++\Release&quot;"
 				GenerateDebugInformation="true"
 				SubSystem="2"
 				TargetMachine="1"
@@ -303,15 +303,7 @@
 				>
 			</File>
 			<File
-				RelativePath="..\Shared\rtl2382-tuner_e4000.cpp"
-				>
-			</File>
-			<File
 				RelativePath="..\Shared\rtl2382.cpp"
-				>
-			</File>
-			<File
-				RelativePath="..\Shared\rtl2832-tuner_fc0013.cpp"
 				>
 			</File>
 			<File
@@ -401,19 +393,7 @@
 				>
 			</File>
 			<File
-				RelativePath="..\Shared\rtl2832-i2c.h"
-				>
-			</File>
-			<File
-				RelativePath="..\Shared\rtl2832-tuner_e4000.h"
-				>
-			</File>
-			<File
-				RelativePath="..\Shared\rtl2832-tuner_fc0013.h"
-				>
-			</File>
-			<File
-				RelativePath="..\Shared\rtl2832.h"
+				RelativePath="..\Shared\rtl2832-extio.h"
 				>
 			</File>
 			<File

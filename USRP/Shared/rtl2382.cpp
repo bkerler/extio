@@ -1,85 +1,19 @@
 #include "StdAfx.h"
-#include "rtl2832.h"
+#include "rtl2832-extio.h"
 
 #include "PluginFactory.h"
 #include "Utils.h"
 
-#include "rtl2832-tuner_e4000.h"
-#include "rtl2832-tuner_fc0013.h"
-
 #define DEFAULT_READLEN			(/*16 * */16384 * 2)	// This is good compromise between maintaining a good buffer level and immediate response to parameter adjustment
 #define DEFAULT_BUFFER_MUL		(4*2)
 #define DEFAULT_BUFFER_LEVEL	0.5f
-#define WAIT_FUDGE				1.2f
+#define WAIT_FUDGE				(1.2+0.3)
 #define RAW_SAMPLE_SIZE			(1+1)
-#define LIBUSB_TIMEOUT			3000
 
-#define CTRL_IN		(LIBUSB_REQUEST_TYPE_VENDOR | LIBUSB_ENDPOINT_IN)
-#define CTRL_OUT	(LIBUSB_REQUEST_TYPE_VENDOR | LIBUSB_ENDPOINT_OUT)
+IMPLEMENT_PF(RTL2832)
 
-/* ezcap USB 2.0 DVB-T/DAB/FM stick */
-#define EZCAP_VID		0x0bda
-#define EZCAP_PID		0x2838
-
-#define HAMA_VID		0x0bda
-#define HAMA_PID		0x2832
-
-#define BANDWIDTH		8000000
-#define MAX_RATE		3200000
-
-/* Terratec NOXON DAB/DAB+ USB-Stick */
-#define NOXON_VID		0x0ccd
-#define NOXON_PID		0x00b3
-#define NOXON_V2_PID	0x00e0
-
-/* Dexatek Technology Ltd. DK DVB-T Dongle */
-#define DEXATEK_VID		0x1d19
-#define DEXATEK_PID		0x1101
-
-#define CRYSTAL_FREQ	28800000
-
-enum usb_reg {
-	USB_SYSCTL		= 0x2000,
-	USB_CTRL		= 0x2010,
-	USB_STAT		= 0x2014,
-	USB_EPA_CFG		= 0x2144,
-	USB_EPA_CTL		= 0x2148,
-	USB_EPA_MAXPKT		= 0x2158,
-	USB_EPA_MAXPKT_2	= 0x215a,
-	USB_EPA_FIFO_CFG	= 0x2160,
-};
-
-enum sys_reg {
-	DEMOD_CTL		= 0x3000,
-	GPO			= 0x3001,
-	GPI			= 0x3002,
-	GPOE			= 0x3003,
-	GPD			= 0x3004,
-	SYSINTE			= 0x3005,
-	SYSINTS			= 0x3006,
-	GP_CFG0			= 0x3007,
-	GP_CFG1			= 0x3008,
-	SYSINTE_1		= 0x3009,
-	SYSINTS_1		= 0x300a,
-	DEMOD_CTL_1		= 0x300b,
-	IR_SUSPEND		= 0x300c,
-};
-
-enum blocks {
-	DEMODB			= 0,
-	USBB			= 1,
-	SYSB			= 2,
-	TUNB			= 3,
-	ROMB			= 4,
-	IRB				= 5,
-	IICB			= 6,
-};
-
-IMPLEMENT_PF(rtl2832)
-
-rtl2832::rtl2832()
-	: devh(NULL)
-	, m_pCaptureThread(NULL)
+RTL2832::RTL2832()
+	: m_pCaptureThread(NULL)
 	, m_nItemSize(0)
 	, m_hStopEvent(INVALID_HANDLE_VALUE)
 	, m_hPacketEvent(INVALID_HANDLE_VALUE)
@@ -88,11 +22,8 @@ rtl2832::rtl2832()
 	, m_pUSBBuffer(NULL)
 	, m_nBufferStart(0)
 	, m_nBufferSize(0)
-	, tuner_type(TUNER_UNKNOWN)
 	, m_bBuffering(false)
 	, m_pConversionBuffer(NULL)
-	, m_iTunerGainMode(RTL2832_E4000_TUNER_GAIN_NORMAL)
-	, m_bUSBInitDone(false)
 	, m_nReadLength(DEFAULT_READLEN)
 	, m_nBufferMultiplier(DEFAULT_BUFFER_MUL)
 	, m_bUseBuffer(true)
@@ -100,344 +31,61 @@ rtl2832::rtl2832()
 	, m_nReadPacketCount(0)
 	, m_nBufferOverflowCount(0)
 	, m_nBufferUnderrunCount(0)
+	, m_dwReadPacketWait(0)
+	, m_bExternalCall(false)
 {
+	ZERO_MEMORY(m_demod_params);
+
 	m_strAntenna = _T("(Default)");
 	m_recv_samples_per_packet = /*READLEN / RAW_SAMPLE_SIZE*/4096;	// Already on 512-byte boundary (after converting to shorts, will still be)
-	m_fpga_master_clock_freq = MAX_RATE;
 	//m_dSampleRate = m_fpga_master_clock_freq;1000000;	// Use ExtIO default instead
 
 	QueryPerformanceFrequency(&m_liFreq);
 }
 
-rtl2832::~rtl2832()
+RTL2832::~RTL2832()
 {
 	Destroy();
 }
 
-int rtl2832::find_device()
-{
-	if (devh != NULL)
-		return 0;
-
-	devh = libusb_open_device_with_vid_pid(NULL, EZCAP_VID, EZCAP_PID);
-	if (devh > 0) {
-		tuner_type = TUNER_E4000;
-		m_gainRange = uhd::gain_range_t(-5, 30, 0.5);
-		m_strName = _T("ezcap EzTV");
-		AfxTrace(_T("Found ezcap stick with E4000 tuner\n"));
-		return 0;
-	}
-
-	devh = libusb_open_device_with_vid_pid(NULL, HAMA_VID, HAMA_PID);
-	if (devh > 0) {
-		tuner_type = TUNER_E4000;
-		m_gainRange = uhd::gain_range_t(-5, 30, 0.5);
-		m_strName = _T("Hama nano");
-		AfxTrace(_T("Found Hama nano stick with E4000 tuner\n"));
-		return 0;
-	}
-
-	devh = libusb_open_device_with_vid_pid(NULL, DEXATEK_VID, DEXATEK_PID);
-	if (devh > 0) {
-		tuner_type = TUNER_FC0013;
-		m_gainRange = uhd::gain_range_t(-6.3, 19.7, 0.1);
-		m_strName = _T("Dexatek Technology");
-		AfxTrace(_T("Found Dexatek Technology stick with FC0013 tuner\n"));
-		return 0;
-	}
-
-	devh = libusb_open_device_with_vid_pid(NULL, NOXON_VID, NOXON_PID);
-	if (devh > 0) {
-		tuner_type = TUNER_FC0013;
-		m_gainRange = uhd::gain_range_t(-6.3, 19.7, 0.1);
-		m_strName = _T("Terratec NOXON");
-		AfxTrace(_T("Found Terratec NOXON (revision 1) stick with FC0013 tuner\n"));
-		return 0;
-	}
-
-	devh = libusb_open_device_with_vid_pid(NULL, NOXON_VID, NOXON_V2_PID);
-	if (devh > 0) {
-		tuner_type = TUNER_E4000;
-		m_gainRange = uhd::gain_range_t(-5, 30, 0.5);
-		m_strName = _T("Terratec NOXON (rev 2)");
-		AfxTrace(_T("Found Terratec NOXON (revision 2) stick with E4000 tuner\n"));
-		return 0;
-	}
-
-	return -EIO;
-}
-
-int rtl2832::rtl_read_array(uint8_t block, uint16_t addr, uint8_t *array, uint8_t len)
-{
-	int r;
-	uint16_t index = (block << 8);
-
-	r = libusb_control_transfer(devh, CTRL_IN, 0, addr, index, array, len, 0);
-
-	return r;
-}
-
-int rtl2832::rtl_write_array(uint8_t block, uint16_t addr, uint8_t *array, uint8_t len)
-{
-	int r;
-	uint16_t index = (block << 8) | 0x10;
-
-	r = libusb_control_transfer(devh, CTRL_OUT, 0, addr, index, array, len, 0);
-	if (r == 0)
-	{
-		AfxTrace(_T("No bytes xfered\n"));
-	}
-	else if (r < 0)
-	{
-/* \returns on success, the number of bytes actually transferred
- * \returns LIBUSB_ERROR_TIMEOUT if the transfer timed out
- * \returns LIBUSB_ERROR_PIPE if the control request was not supported by the
- * device
- * \returns LIBUSB_ERROR_NO_DEVICE if the device has been disconnected
- * \returns another LIBUSB_ERROR code on other failures
-*/
-		if (r == LIBUSB_ERROR_PIPE)
-			AfxTrace(_T("USB control request not supported\n"));
-		else
-			AfxTrace(_T("Error writing control: %i\n"), r);
-	}
-
-	return r;
-}
-
-int rtl2832::rtl_i2c_write(uint8_t i2c_addr, uint8_t *buffer, int len)
-{
-	uint16_t addr = i2c_addr;
-	return rtl_write_array(IICB, addr, buffer, len);
-}
-
-int rtl2832::rtl_i2c_read(uint8_t i2c_addr, uint8_t *buffer, int len)
-{
-	uint16_t addr = i2c_addr;
-	return rtl_read_array(IICB, addr, buffer, len);
-}
-
-uint16_t rtl2832::rtl_read_reg(uint8_t block, uint16_t addr, uint8_t len)
-{
-	int r;
-	unsigned char data[2];
-	uint16_t index = (block << 8);
-	uint16_t reg;
-
-	r = libusb_control_transfer(devh, CTRL_IN, 0, addr, index, data, len, 0);
-
-	if (r < 0)
-		AfxTrace(_T("%s failed\n"), __FUNCTION__);
-
-	reg = (data[1] << 8) | data[0];
-
-	return reg;
-}
-
-void rtl2832::rtl_write_reg(uint8_t block, uint16_t addr, uint16_t val, uint8_t len)
-{
-	int r;
-	unsigned char data[2];
-
-	uint16_t index = (block << 8) | 0x10;
-
-	if (len == 1)
-		data[0] = val & 0xff;
-	else
-		data[0] = val >> 8;
-
-	data[1] = val & 0xff;
-
-	r = libusb_control_transfer(devh, CTRL_OUT, 0, addr, index, data, len, 0);
-
-	if (r < 0)
-		AfxTrace(_T("%s failed\n"), __FUNCTION__);
-}
-
-uint16_t rtl2832::demod_read_reg(uint8_t page, uint8_t addr, uint8_t len)
-{
-	int r;
-	unsigned char data[2];
-
-	uint16_t index = page;
-	uint16_t reg;
-	addr = (addr << 8) | 0x20;
-
-	r = libusb_control_transfer(devh, CTRL_IN, 0, addr, index, data, len, 0);
-
-	if (r < 0)
-		AfxTrace(_T("%s failed\n"), __FUNCTION__);
-
-	reg = (data[1] << 8) | data[0];
-
-	return reg;
-}
-
-void rtl2832::demod_write_reg(uint8_t page, uint16_t addr, uint16_t val, uint8_t len)
-{
-	int r;
-	unsigned char data[2];
-	uint16_t index = 0x10 | page;
-	addr = (addr << 8) | 0x20;
-
-	if (len == 1)
-		data[0] = val & 0xff;
-	else
-		data[0] = val >> 8;
-
-	data[1] = val & 0xff;
-
-	r = libusb_control_transfer(devh, CTRL_OUT, 0, addr, index, data, len, 0);
-
-	if (r < 0)
-		AfxTrace(_T("%s failed\n"), __FUNCTION__);
-
-	demod_read_reg(0x0a, 0x01, 1);
-}
-
-bool rtl2832::set_samp_rate(uint32_t samp_rate)
-{
-	uint16_t tmp;
-	uint32_t rsamp_ratio;
-	double real_rate;
-
-	/* check for the maximum rate the resampler supports */
-	if (samp_rate > MAX_RATE)
-		samp_rate = MAX_RATE;
-
-	rsamp_ratio = ((UINT64)CRYSTAL_FREQ * (UINT64)pow((float)2, 22)) / (UINT64)samp_rate;	// CHANGE
-	rsamp_ratio &= ~3;
-
-	if (rsamp_ratio == 0)
-		return false;
-
-	real_rate = (CRYSTAL_FREQ * pow((float)2, 22)) / rsamp_ratio;	// CHANGE
-
-	AfxTrace(_T("Setting sample rate: %.3f Hz\n"), real_rate);
-
-	m_dSampleRate = real_rate;
-
-	tmp = (rsamp_ratio >> 16);
-	demod_write_reg(1, 0x9f, tmp, 2);
-	tmp = rsamp_ratio & 0xffff;
-	demod_write_reg(1, 0xa1, tmp, 2);
-
-	return true;
-}
-
-void rtl2832::set_i2c_repeater(int on)
-{
-	demod_write_reg(1, 0x01, on ? 0x18 : 0x10, 1);
-}
-
-void rtl2832::rtl_init(void)
-{
-	unsigned int i;
-
-	/* default FIR coefficients used for DAB/FM by the Windows driver,
-	 * the DVB driver uses different ones */
-	uint8_t fir_coeff[] = {
-		0xca, 0xdc, 0xd7, 0xd8, 0xe0, 0xf2, 0x0e, 0x35, 0x06, 0x50,
-		0x9c, 0x0d, 0x71, 0x11, 0x14, 0x71, 0x74, 0x19, 0x41, 0x00,
-	};
-
-	/* initialize USB */
-	rtl_write_reg(USBB, USB_SYSCTL, 0x09, 1);
-	rtl_write_reg(USBB, USB_EPA_MAXPKT, 0x0002, 2);
-	rtl_write_reg(USBB, USB_EPA_CTL, 0x1002, 2);
-
-	/* poweron demod */
-	rtl_write_reg(SYSB, DEMOD_CTL_1, 0x22, 1);
-	rtl_write_reg(SYSB, DEMOD_CTL, 0xe8, 1);
-
-	/* reset demod (bit 3, soft_rst) */
-	demod_write_reg(1, 0x01, 0x14, 1);
-	demod_write_reg(1, 0x01, 0x10, 1);
-
-	/* disable spectrum inversion and adjacent channel rejection */
-	demod_write_reg(1, 0x15, 0x00, 1);
-	demod_write_reg(1, 0x16, 0x0000, 2);
-
-	/* set IF-frequency to 0 Hz */
-	demod_write_reg(1, 0x19, 0x0000, 2);
-
-	/* set FIR coefficients */
-	for (i = 0; i < sizeof (fir_coeff); i++)
-		demod_write_reg(1, 0x1c + i, fir_coeff[i], 1);
-
-	demod_write_reg(0, 0x19, 0x25, 1);
-
-	/* init FSM state-holding register */
-	demod_write_reg(1, 0x93, 0xf0, 1);
-
-	/* disable AGC (en_dagc, bit 0) */
-	demod_write_reg(1, 0x11, 0x00, 1);
-
-	/* disable PID filter (enable_PID = 0) */
-	demod_write_reg(0, 0x61, 0x60, 1);
-
-	/* opt_adc_iq = 0, default ADC_I/ADC_Q datapath */
-	demod_write_reg(0, 0x06, 0x80, 1);
-
-	/* Enable Zero-IF mode (en_bbin bit), DC cancellation (en_dc_est),
-	 * IQ estimation/compensation (en_iq_comp, en_iq_est) */
-	demod_write_reg(1, 0xb1, 0x1b, 1);
-}
-
-bool rtl2832::tuner_init()
-{
-	bool bReturn = false;
-
-	set_i2c_repeater(1);
-
-	switch (tuner_type) {
-	case TUNER_E4000:
-		if (e4000_Initialize(this) != 0)
-		{
-			AfxTrace(_T("e4000_Initialize failed\n"));
-			goto tuner_init_error;
-		}
-		if (e4000_SetBandwidthHz(this, BANDWIDTH) != 0)
-		{
-			AfxTrace(_T("e4000_SetBandwidthHz failed\n"));
-			goto tuner_init_error;
-		}
-		break;
-	case TUNER_FC0013:
-		if (FC0013_Open(this) != 0)
-		{
-			AfxTrace(_T("FC0013_Open failed\n"));
-			goto tuner_init_error;
-		}
-		break;
-	default:
-		AfxTrace(_T("No valid tuner available!\n"));
-		break;
-	}
-
-	bReturn = true;
-tuner_init_error:
-	set_i2c_repeater(0);
-	return bReturn;
-}
-
 ///////////////////////////////////////////////////////////////////////////////
 
-bool rtl2832::Create(LPCTSTR strHint /*= NULL*/)
+void RTL2832::on_log_message_va(int level, const char* msg, va_list args)
+{
+	CHAR szBuffer[512];
+	int nBuf = vsprintf_s(szBuffer, _countof(szBuffer), msg, args);
+	ASSERT(nBuf >= 0);	// was there an error? was the expanded string too long?
+	OutputDebugStringA(szBuffer);
+	va_end(args);
+
+	if ((m_bExternalCall)/* && (level <= rtl2832::log_sink::LOG_LEVEL_ERROR)*/)
+		m_strLastError = CStringA(szBuffer).Trim();
+}
+
+bool RTL2832::Create(LPCTSTR strHint /*= NULL*/)
 {
 	Destroy();
 
 	m_strLastError.Empty();
 
-	m_nReadLength = DEFAULT_READLEN;
-	m_nBufferMultiplier = DEFAULT_BUFFER_MUL;
-	m_fBufferLevel = DEFAULT_BUFFER_LEVEL;
+	m_nReadLength			= DEFAULT_READLEN;
+	m_nBufferMultiplier		= DEFAULT_BUFFER_MUL;
+	m_fBufferLevel			= DEFAULT_BUFFER_LEVEL;
+	m_bUseBuffer			= true;
+
+	memset(&m_demod_params, 0x00, sizeof(m_demod_params));
+
+	m_demod_params.message_output = this;
+	m_demod_params.verbose = true;
 
 	/////////////////////////
 
 	CString str(strHint);
 	if ((str.GetLength() >= 3) && (str.Left(3).CompareNoCase(_T("rtl")) == 0))
 		str = str.Mid(3).Trim();
+
+	bool bAutoGainMode = false;
+	CString strGainMode;
 
 	CStringArray array;
 	if (Teh::Utils::Tokenise(str, array, _T(' ')))
@@ -501,6 +149,50 @@ bool rtl2832::Create(LPCTSTR strHint /*= NULL*/)
 					if ((f >= 0) && (f <= 100))
 						m_fBufferLevel = f / 100.0f;
 				}
+				else if (strPart == _T("xtalfreq"))
+				{
+					m_demod_params.crystal_frequency = i;
+				}
+				else if (strPart == _T("timeout"))
+				{
+					m_demod_params.default_timeout = i;
+				}
+				else if (strPart == _T("vid"))
+				{
+					if (i == 0)
+					{
+						int iIndex = strArg.Find(_T('x'));
+						if (iIndex > -1)
+							strArg = strArg.Mid(iIndex + 1);
+						_stscanf_s(strArg, _T("%x"), &i);
+					}
+
+					m_demod_params.vid = i;
+				}
+				else if (strPart == _T("pid"))
+				{
+					if (i == 0)
+					{
+						int iIndex = strArg.Find(_T('x'));
+						if (iIndex > -1)
+							strArg = strArg.Mid(iIndex + 1);
+						_stscanf_s(strArg, _T("%x"), &i);
+					}
+
+					m_demod_params.pid = i;
+				}
+				else if (strPart == _T("tuner"))
+				{
+					strcpy_s(m_demod_params.tuner_name, rtl2832::demod::TUNER_NAME_LEN, CStringA(strArg));
+				}
+				else if (strPart == _T("autogainmode"))
+				{
+					bAutoGainMode = (i != 0);
+				}
+				else if (strPart == _T("gainmode"))
+				{
+					strGainMode = strArg;
+				}
 				else
 				{
 					AfxTrace(_T("Unknown RTL parameter key: ") + strPart);
@@ -520,8 +212,6 @@ bool rtl2832::Create(LPCTSTR strHint /*= NULL*/)
 	m_nBufferSize = (m_nReadLength / RAW_SAMPLE_SIZE) * m_nBufferMultiplier;
 	m_pUSBBuffer = new BYTE[m_nBufferSize * RAW_SAMPLE_SIZE];
 	ZeroMemory(m_pUSBBuffer, m_nBufferSize * RAW_SAMPLE_SIZE);
-
-	// FIXME: Delay
 
 	m_nItemSize = m_recv_samples_per_packet * 2 * sizeof(short);
 	m_pBuffer = (short*)new BYTE[m_nItemSize];
@@ -545,59 +235,73 @@ bool rtl2832::Create(LPCTSTR strHint /*= NULL*/)
 
 	/////////////////////////
 
-	int r;
+	{ SCOPED_LOG_MONITOR(m_bExternalCall);
+	if (m_demod.initialise(&m_demod_params) != RTL2832_NAMESPACE::SUCCESS)
+		return false;
+	}
 
-	if (m_bUSBInitDone == false)
+	m_strName = CStringA(m_demod.name());
+	rtl2832::range_t gr = m_demod.active_tuner()->gain_range();
+	rtl2832::values_t listGains = m_demod.active_tuner()->gain_values();
+	double dGainStep = 1.0;
+	for (rtl2832::values_t::iterator it = listGains.begin(); it != listGains.end(); ++it)
 	{
-		r = libusb_init(NULL);
-		if (r < 0) {
-			m_strLastError = _T("Failed to initialise libusb");
-			AfxTrace(_T("Failed to initialise libusb\n"));
+		double d = (*it);
+		if (d < 0)
+			d = -d;
+		d = d - floor(d);
+		if (d > 1e-3)
+			dGainStep = min(dGainStep, d);
+	}
+
+	m_gainRange =  uhd::gain_range_t(gr.first, gr.second, dGainStep);
+
+	m_fpga_master_clock_freq = m_demod.crystal_frequency();
+
+	if (bAutoGainMode)
+	{
+		{ SCOPED_LOG_MONITOR(m_bExternalCall);
+		if (m_demod.active_tuner()->set_auto_gain_mode() != RTL2832_NAMESPACE::SUCCESS)
+			return false;
+		}
+	}
+
+	if (strGainMode.IsEmpty() == false)
+	{
+		int iMode;
+		bool bFound = false;
+
+		RTL2832_NAMESPACE::num_name_map_t map = m_demod.active_tuner()->gain_modes();
+		for (RTL2832_NAMESPACE::num_name_map_t::iterator it = map.begin(); it != map.end(); ++it)
+		{
+			if (CStringA(strGainMode).CompareNoCase(it->second.c_str()) == 0)
+			{
+				iMode = it->first;
+				bFound = true;
+				break;
+			}
+		}
+
+		if (bFound == false)
+		{
+			m_strLastError.Format(_T("Specified gain mode \"%s\" not supported by \"%s\" tuner"), strGainMode, CString(m_demod.active_tuner()->name()));
 			return false;
 		}
 
-		m_bUSBInitDone = true;
+		{ SCOPED_LOG_MONITOR(m_bExternalCall);
+		if (m_demod.active_tuner()->set_gain_mode(iMode) != RTL2832_NAMESPACE::SUCCESS)
+			return false;
+		}
 	}
-
-	r = find_device();
-	if (r < 0) {
-		m_strLastError = _T("Could not find/open device");
-		AfxTrace(_T("Could not find/open device\n"));
-		Destroy();
-		return false;
-	}
-
-	r = libusb_claim_interface(devh, 0);
-	if (r < 0) {
-		m_strLastError = _T("usb_claim_interface error: ") + Teh::Utils::ToString(r);
-		AfxTrace(_T("usb_claim_interface error: %d\n"), r);
-		Destroy();
-		return false;
-	}
-
-	rtl_init();
-	if (tuner_init() == false)
-		return false;
 
 	return true;
 }
 
-void rtl2832::Destroy()
+void RTL2832::Destroy()
 {
 	Stop();
 
-	if (devh != NULL)
-	{
-		libusb_release_interface(devh, 0);
-		libusb_close(devh);
-		devh = NULL;
-	}
-
-	if (m_bUSBInitDone)
-	{
-		libusb_exit(NULL);
-		m_bUSBInitDone = false;
-	}
+	m_demod.destroy();
 
 	SAFE_DELETE_ARRAY(m_pBuffer);
 	SAFE_DELETE_ARRAY(m_pUSBBuffer);
@@ -624,12 +328,12 @@ void rtl2832::Destroy()
 
 static UINT _cdecl _CaptureThreadProc(LPVOID pPrivate)
 {
-	rtl2832* p = (rtl2832*)pPrivate;
+	RTL2832* p = (RTL2832*)pPrivate;
 	
 	return p->CaptureThreadProc();
 }
 
-void rtl2832::Reset()
+void RTL2832::Reset()
 {
 	CSingleLock lock(&m_cs, TRUE);
 
@@ -650,8 +354,10 @@ void rtl2832::Reset()
 	ResetEvent(m_hAbortEvent);
 }
 
-bool rtl2832::Start()
+bool RTL2832::Start()
 {
+	m_strLastError.Empty();
+
 	CSingleLock lock(&m_cs, TRUE);
 
 	if (m_bRunning)
@@ -659,9 +365,10 @@ bool rtl2832::Start()
 
 	Reset();
 
-	/* reset endpoint before we start reading */
-	rtl_write_reg(USBB, USB_EPA_CTL, 0x1002, 2);
-	rtl_write_reg(USBB, USB_EPA_CTL, 0x0000, 2);
+	{ SCOPED_LOG_MONITOR(m_bExternalCall);
+	if (m_demod.reset() != RTL2832_NAMESPACE::SUCCESS)
+		return false;
+	}
 
 	m_bBuffering = true;
 
@@ -677,7 +384,7 @@ bool rtl2832::Start()
 	return true;
 }
 
-void rtl2832::Stop()
+void RTL2832::Stop()
 {
 	CSingleLock lock(&m_cs, TRUE);
 
@@ -703,181 +410,82 @@ void rtl2832::Stop()
 	m_bRunning = false;
 }
 
-bool rtl2832::SetGain(double dGain)
-{
-	m_strLastError.Empty();
-
-	static int mapGainsE4000[] = {	// rtl2832: nim_rtl2832_e4000.c
-		-50,	2,
-		-25,	3,
-		0,		4,
-		25,		5,
-		50,		6,
-		75,		7,
-		100,	8,
-		125,	9,
-		150,	10,
-		175,	11,
-		200,	12,
-		225,	13,
-		250,	14,
-		300,	15,	// Apparently still 250
-	};
-
-  /*enum FC0013_LNA_GAIN_VALUE
-  {
-	  FC0013_LNA_GAIN_LOW     = 0x00,	// -6.3dB
-	  FC0013_LNA_GAIN_MIDDLE  = 0x08,	//  7.1dB
-	  FC0013_LNA_GAIN_HIGH_17 = 0x11,	// 19.1dB
-	  FC0013_LNA_GAIN_HIGH_19 = 0x10,	// 19.7dB
-  };*/
-	
-	static int mapGainsFC0013[] = {	// rtl2832: nim_rtl2832_fc0013.c
-	  -63, 0x00,
-	  +71, 0x08,
-	  191, 0x11,
-	  197, 0x10
-	};
-	
-	int* mapGains = NULL;
-	int iCount = 0;
-	
-	switch (tuner_type) {
-	  case TUNER_E4000:
-		mapGains = mapGainsE4000;
-		iCount = (sizeof(mapGainsE4000)/sizeof(mapGainsE4000[0])) / 2;
-		break;
-	  case TUNER_FC0013:
-		mapGains = mapGainsFC0013;
-		iCount = (sizeof(mapGainsFC0013)/sizeof(mapGainsFC0013[0])) / 2;
-		break;
-	  default:
-		return false;
-	}
-
-	int iGain = (int)(dGain * 10.0);
-	int i = GetMapIndex(iGain, mapGains, iCount);
-
-	if ((i == -1) || (i == iCount))
-		return false;
-
-	unsigned char u8Write = mapGains[i + 1];
-
-	//CSingleLock lock(&m_cs, TRUE);	// Switched off to improve responsiveness (just don't call this from different threads!)
-
-	set_i2c_repeater(1);
-
-	if (tuner_type == TUNER_E4000)
-	{
-	  unsigned char u8Read = 0;
-	  if (I2CReadByte(this, 0, RTL2832_E4000_LNA_GAIN_ADDR, &u8Read) != E4000_I2C_SUCCESS)
-	  {
-		  goto gain_failure;
-	  }
-
-	  u8Write |= (u8Read & ~RTL2832_E4000_LNA_GAIN_MASK);
-
-	  if (I2CWriteByte(this, 0, RTL2832_E4000_LNA_GAIN_ADDR, u8Write) != E4000_I2C_SUCCESS)
-	  {
-		  goto gain_failure;
-	  }
-	}
-	else if (tuner_type == TUNER_FC0013)
-	{
-/* FIXME: Also really should be handling:
-	int boolVhfFlag;      // 0:false,  1:true
-	int boolEnInChgFlag;  // 0:false,  1:true
-	int intGainShift;
-*/
-		if (fc0013_SetRegMaskBits(this, 0x14, 4, 0, u8Write) != FC0013_I2C_SUCCESS)
-		{
-			goto gain_failure;
-		}
-	}
-
-	m_dGain = (double)mapGains[i] / 10.0;
-
-	set_i2c_repeater(0);
-
-	/////////////////////////
-	//if (m_auto_tuner_mode)
-		SetTunerMode();
-	/////////////////////////
-
-	return true;
-gain_failure:
-	set_i2c_repeater(0);
-	AfxTrace(_T("I2C write failed\n"));
-	return false;
-}
-
-bool rtl2832::SetAntenna(int iIndex)
-{
-	return true;
-}
-
-bool rtl2832::SetAntenna(LPCTSTR strAntenna)
-{
-	return true;
-}
-
-double rtl2832::SetFreq(double dFreq)
+bool RTL2832::SetGain(double dGain)
 {
 	m_strLastError.Empty();
 
 	//CSingleLock lock(&m_cs, TRUE);	// Switched off to improve responsiveness (just don't call this from different threads!)
 
-	set_i2c_repeater(1);
-
-	switch (tuner_type) {
-	case TUNER_E4000:
-		if (e4000_SetRfFreqHz(this, (unsigned long)dFreq) != 0)
-		{
-			goto freq_failure;
-		}
-		break;
-	case TUNER_FC0013:
-		if (FC0013_SetFrequency(this, (unsigned long)(dFreq/1000.0), 8) == 0)
-		{
-			goto freq_failure;
-		}
-		break;
-	default:
-		//break;
-		set_i2c_repeater(0);
-		return dFreq;
+	{ SCOPED_LOG_MONITOR(m_bExternalCall);
+	if (m_demod.active_tuner()->set_gain(dGain) != RTL2832_NAMESPACE::SUCCESS)
+		return false;
 	}
 
-	set_i2c_repeater(0);
+	m_dGain = m_demod.active_tuner()->gain();
+
+	return true;
+}
+
+bool RTL2832::SetAntenna(int iIndex)
+{
+	return true;
+}
+
+bool RTL2832::SetAntenna(LPCTSTR strAntenna)
+{
+	return true;
+}
+
+double RTL2832::SetFreq(double dFreq)
+{
+	m_strLastError.Empty();
+
+	//CSingleLock lock(&m_cs, TRUE);	// Switched off to improve responsiveness (just don't call this from different threads!)
+
+	{ SCOPED_LOG_MONITOR(m_bExternalCall);
+	if (m_demod.active_tuner()->set_frequency(dFreq) != RTL2832_NAMESPACE::SUCCESS)
+		return -1;
+
+	m_tuneResult.actual_rf_freq = m_demod.active_tuner()->frequency();
+	if (m_tuneResult.actual_rf_freq <= 0)
+		return -1;
+	}
 
 	m_tuneResult.target_rf_freq = dFreq;
-	m_tuneResult.actual_rf_freq = ((dFreq + 500.0) / 1000.0);
 
-	m_dFreq = dFreq;
-
-	return dFreq;
-freq_failure:
-	set_i2c_repeater(0);
-	if (m_strLastError.IsEmpty())
-		m_strLastError = _T("I2C write failed");
-	AfxTrace(_T("I2C write failed\n"));
-	return -1;
+	return (m_dFreq = m_tuneResult.actual_rf_freq);
 }
 
-double rtl2832::SetSampleRate(double dSampleRate)
+double RTL2832::SetSampleRate(double dSampleRate)
 {
+	m_strLastError.Empty();
+
+	if (dSampleRate <= 0)
+		return -1;
+
 	CSingleLock lock(&m_cs, TRUE);
 
-	if (devh == NULL)
-		return -1;
+	double d = -1;
 
-	if (set_samp_rate((uint32_t)dSampleRate) == false)
-		return -1;
+	{ SCOPED_LOG_MONITOR(m_bExternalCall);
+	if (m_demod.set_sample_rate((uint32_t)dSampleRate, &d) != RTL2832_NAMESPACE::SUCCESS)
+	{
+		if (d == 0)
+			m_strLastError.Format(_T("Hardware sample rate could not be calculated from give rate: %f"), dSampleRate);
+		else if (d == -1)
+			m_strLastError.Format(_T("Supplied sample rate outside valid range [%.1f - %.1f]"), m_demod.sample_rate_range().first, m_demod.sample_rate_range().second);
 
-	return dSampleRate;
+		return -1;
+	}
+	}
+ 
+	m_dwReadPacketWait = (m_bBuffering ? INFINITE : (DWORD)ceil(WAIT_FUDGE * 1000.0f / (float)((d * RAW_SAMPLE_SIZE) / (double)m_nReadLength)));
+	AfxTrace(_T("Read packet wait time: %lu ms\n"), m_dwReadPacketWait);
+
+	return (m_dSampleRate = d);
 }
 
-std::vector<std::string> rtl2832::GetAntennas() const
+std::vector<std::string> RTL2832::GetAntennas() const
 {
 	std::vector<std::string> array;
 	array.push_back(/*"(Default)"*/(LPCSTR)CStringA(m_strAntenna));
@@ -886,17 +494,17 @@ std::vector<std::string> rtl2832::GetAntennas() const
 
 static short _char_to_float_lut[256] = { -128, -127, -126, -125, -124, -123, -122, -121, -120, -119, -118, -117, -116, -115, -114, -113, -112, -111, -110, -109, -108, -107, -106, -105, -104, -103, -102, -101, -100, -99, -98, -97, -96, -95, -94, -93, -92, -91, -90, -89, -88, -87, -86, -85, -84, -83, -82, -81, -80, -79, -78, -77, -76, -75, -74, -73, -72, -71, -70, -69, -68, -67, -66, -65, -64, -63, -62, -61, -60, -59, -58, -57, -56, -55, -54, -53, -52, -51, -50, -49, -48, -47, -46, -45, -44, -43, -42, -41, -40, -39, -38, -37, -36, -35, -34, -33, -32, -31, -30, -29, -28, -27, -26, -25, -24, -23, -22, -21, -20, -19, -18, -17, -16, -15, -14, -13, -12, -11, -10, -9, -8, -7, -6, -5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105, 106, 107, 108, 109, 110, 111, 112, 113, 114, 115, 116, 117, 118, 119, 120, 121, 122, 123, 124, 125, 126, 127 };
 
-int rtl2832::ReadPacket()
+int RTL2832::ReadPacket()
 {
 	CSingleLock lock(&m_cs, TRUE);
 
-	if ((m_bRunning == false) || (devh == NULL))
+	if (m_bRunning == false)
 		return -1;
 
 	if (m_pCaptureThread == NULL)
 	{	
 		int iRead = 0;
-		int res = libusb_bulk_transfer(devh, 0x81, m_pConversionBuffer, m_nReadLength, &iRead, LIBUSB_TIMEOUT);
+		int res = m_demod.read_samples(m_pConversionBuffer, m_nReadLength, &iRead);
 		if ((res != 0) && (res != LIBUSB_ERROR_OVERFLOW))
 			return -1;
 
@@ -942,8 +550,7 @@ int rtl2832::ReadPacket()
 		LARGE_INTEGER li, liNow;
 		QueryPerformanceCounter(&li);
 
-		DWORD dwWait = (m_bBuffering ? INFINITE : (DWORD)ceil(WAIT_FUDGE * 1000.0f / (float)((m_dSampleRate * RAW_SAMPLE_SIZE) / (double)m_nReadLength)));
-		DWORD dw = WaitForMultipleObjects(sizeof(hHandles)/sizeof(hHandles[0]), hHandles, FALSE, /*INFINITE*/dwWait);
+		DWORD dw = WaitForMultipleObjects(sizeof(hHandles)/sizeof(hHandles[0]), hHandles, FALSE, /*INFINITE*/m_dwReadPacketWait);
 		if (dw == (WAIT_OBJECT_0 + 0))
 		{
 			return 0;
@@ -965,7 +572,7 @@ int rtl2832::ReadPacket()
 		{
 			QueryPerformanceCounter(&liNow);
 			UINT nDelay = (UINT)(liNow.QuadPart - li.QuadPart);
-			AfxTrace(_T("Wait time-out elapsed (%lu ms, %.1f ms), getting next portion of buffer... [#%lu]\n"), dwWait, (float)(1000.0 * (double)nDelay / (double)m_liFreq.QuadPart), m_nReadPacketCount);
+			AfxTrace(_T("Wait time-out elapsed (%lu ms, %.1f ms), getting next portion of buffer... [#%lu]\n"), m_dwReadPacketWait, (float)(1000.0 * (double)nDelay / (double)m_liFreq.QuadPart), m_nReadPacketCount);
 			break;
 		}
 		else
@@ -1037,7 +644,7 @@ int rtl2832::ReadPacket()
 
 ///////////////////////////////////////////////////////////////////////////////
 
-CString rtl2832::GetExtraInfo() const
+CString RTL2832::GetExtraInfo() const
 {
 	CSingleLock lock(const_cast<CCriticalSection*>(&m_cs), TRUE);
 
@@ -1054,13 +661,28 @@ CString rtl2832::GetExtraInfo() const
 	return str;
 }
 
-UINT rtl2832::CaptureThreadProc()
+UINT RTL2832::CaptureThreadProc()
 {
+	CSingleLock lock(&m_cs, FALSE);
+
+	if ((m_nReadLength == 0) ||
+		(m_pUSBBuffer == NULL) ||
+		(m_nBufferSize == 0) ||
+		(m_fBufferLevel < 0))
+	{
+		//lock.lock();
+		//m_bRunning = false;
+		SetEvent(m_hAbortEvent);
+		//lock.unlock();
+
+		AfxTrace(_T("Capture threading %04x NOT starting due to state error\n"), GetCurrentThreadId());
+
+		return 0;
+	}
+
 	DWORD dwTime = GetTickCount();
 
 	AfxTrace(_T("Capture thread %04x starting...\n"), GetCurrentThreadId());
-
-	CSingleLock lock(&m_cs, FALSE);
 
 	LPBYTE pBuffer = new BYTE[m_nReadLength];
 UINT nTransfers = 0;
@@ -1073,7 +695,7 @@ UINT nTransfers = 0;
 		}
 
 		int lLockSize = 0;
-		int res = libusb_bulk_transfer(devh, 0x81, pBuffer, m_nReadLength, &lLockSize, LIBUSB_TIMEOUT);
+		int res = m_demod.read_samples(pBuffer, m_nReadLength, &lLockSize);
 		if (res == LIBUSB_ERROR_OVERFLOW)
 		{
 			AfxTrace(_T("USB overrun\n"));
@@ -1132,12 +754,12 @@ AfxTrace(_T("OVERRUN: Remaining: %lu\n"), nRemaining);	// FIXME: Overrun
 		}
 
 		//////////////////////////
-		DWORD dwNow = GetTickCount();
+		/*DWORD dwNow = GetTickCount();
 		if ((dwNow - dwTime) >= 1000)
 		{
 			AfxTrace(_T("Buffer at %.1f%%\n"), (100.0f * (float)m_nBufferItems / (float)m_nBufferSize));
 			dwTime = dwNow;
-		}
+		}*/
 
 		lock.Unlock();
 
@@ -1150,334 +772,4 @@ AfxTrace(_T("OVERRUN: Remaining: %lu\n"), nRemaining);	// FIXME: Overrun
 	AfxTrace(_T("Capture thread %04x exiting\n"), GetCurrentThreadId());
 
 	return 0;
-}
-
-#define NO_USE 0
-
-int rtl2832::SetTunerMode()
-{
-	if (tuner_type != TUNER_E4000)
-		return m_iTunerGainMode;
-
-	static const long LnaGainTable[RTL2832_E4000_LNA_GAIN_TABLE_LEN][RTL2832_E4000_LNA_GAIN_BAND_NUM] =
-	{
-		// VHF Gain,	UHF Gain,		ReadingByte
-		{-50,			-50	},		//	0x0
-		{-25,			-25	},		//	0x1
-		{-50,			-50	},		//	0x2
-		{-25,			-25	},		//	0x3
-		{0,				0	},		//	0x4
-		{25,			25	},		//	0x5
-		{50,			50	},		//	0x6
-		{75,			75	},		//	0x7
-		{100,			100	},		//	0x8
-		{125,			125	},		//	0x9
-		{150,			150	},		//	0xa
-		{175,			175	},		//	0xb
-		{200,			200	},		//	0xc
-		{225,			250	},		//	0xd
-		{250,			280	},		//	0xe
-		{250,			280	},		//	0xf
-
-		// Note: The gain unit is 0.1 dB.
-	};
-
-	static const long LnaGainAddTable[RTL2832_E4000_LNA_GAIN_ADD_TABLE_LEN] =
-	{
-		// Gain,		ReadingByte
-		NO_USE,		//	0x0
-		NO_USE,		//	0x1
-		NO_USE,		//	0x2
-		0,			//	0x3
-		NO_USE,		//	0x4
-		20,			//	0x5
-		NO_USE,		//	0x6
-		70,			//	0x7
-
-		// Note: The gain unit is 0.1 dB.
-	};
-
-	static const long MixerGainTable[RTL2832_E4000_MIXER_GAIN_TABLE_LEN][RTL2832_E4000_MIXER_GAIN_BAND_NUM] =
-	{
-		// VHF Gain,	UHF Gain,		ReadingByte
-		{90,			40	},		//	0x0
-		{170,			120	},		//	0x1
-
-		// Note: The gain unit is 0.1 dB.
-	};
-
-	static const long IfStage1GainTable[RTL2832_E4000_IF_STAGE_1_GAIN_TABLE_LEN] =
-	{
-		// Gain,		ReadingByte
-		-30,		//	0x0
-		60,			//	0x1
-
-		// Note: The gain unit is 0.1 dB.
-	};
-
-	static const long IfStage2GainTable[RTL2832_E4000_IF_STAGE_2_GAIN_TABLE_LEN] =
-	{
-		// Gain,		ReadingByte
-		0,			//	0x0
-		30,			//	0x1
-		60,			//	0x2
-		90,			//	0x3
-
-		// Note: The gain unit is 0.1 dB.
-	};
-
-	static const long IfStage3GainTable[RTL2832_E4000_IF_STAGE_3_GAIN_TABLE_LEN] =
-	{
-		// Gain,		ReadingByte
-		0,			//	0x0
-		30,			//	0x1
-		60,			//	0x2
-		90,			//	0x3
-
-		// Note: The gain unit is 0.1 dB.
-	};
-
-	static const long IfStage4GainTable[RTL2832_E4000_IF_STAGE_4_GAIN_TABLE_LEN] =
-	{
-		// Gain,		ReadingByte
-		0,			//	0x0
-		10,			//	0x1
-		20,			//	0x2
-		20,			//	0x3
-
-		// Note: The gain unit is 0.1 dB.
-	};
-
-	static const long IfStage5GainTable[RTL2832_E4000_IF_STAGE_5_GAIN_TABLE_LEN] =
-	{
-		// Gain,		ReadingByte
-		0,			//	0x0
-		30,			//	0x1
-		60,			//	0x2
-		90,			//	0x3
-		120,		//	0x4
-		120,		//	0x5
-		120,		//	0x6
-		120,		//	0x7
-
-		// Note: The gain unit is 0.1 dB.
-	};
-
-	static const long IfStage6GainTable[RTL2832_E4000_IF_STAGE_6_GAIN_TABLE_LEN] =
-	{
-		// Gain,		ReadingByte
-		0,			//	0x0
-		30,			//	0x1
-		60,			//	0x2
-		90,			//	0x3
-		120,		//	0x4
-		120,		//	0x5
-		120,		//	0x6
-		120,		//	0x7
-
-		// Note: The gain unit is 0.1 dB.
-	};
-
-	unsigned long RfFreqHz;
-	int RfFreqKhz;
-	unsigned long BandwidthHz;
-	int BandwidthKhz;
-
-	unsigned char ReadingByte;
-	int BandIndex;
-
-	unsigned char TunerBitsLna, TunerBitsLnaAdd, TunerBitsMixer;
-	unsigned char TunerBitsIfStage1, TunerBitsIfStage2, TunerBitsIfStage3, TunerBitsIfStage4;
-	unsigned char TunerBitsIfStage5, TunerBitsIfStage6;
-
-	long TunerGainLna, TunerGainLnaAdd, TunerGainMixer;
-	long TunerGainIfStage1, TunerGainIfStage2, TunerGainIfStage3, TunerGainIfStage4;
-	long TunerGainIfStage5, TunerGainIfStage6;
-
-	long TunerGainTotal;
-	long TunerInputPower;
-
-	/////////////////////////
-	int TunerGainMode = -1;
-	set_i2c_repeater(1);
-	/////////////////////////
-
-	// Get tuner RF frequency in KHz.
-	// Note: RfFreqKhz = round(RfFreqHz / 1000)
-	//if(this->GetRfFreqHz(this, &RfFreqHz) != E4000_I2C_SUCCESS)
-	//	goto error_status_get_tuner_registers;
-	RfFreqHz = (unsigned long)GetFreq();
-
-	RfFreqKhz = (int)((RfFreqHz + 500) / 1000);
-
-	// Get tuner bandwidth in KHz.
-	// Note: BandwidthKhz = round(BandwidthHz / 1000)
-	//if(pTunerExtra->GetBandwidthHz(this, &BandwidthHz) != E4000_I2C_SUCCESS)
-	//	goto error_status_get_tuner_registers;
-	BandwidthHz = BANDWIDTH;
-
-	BandwidthKhz = (int)((BandwidthHz + 500) / 1000);
-
-	// Determine band index.
-	BandIndex = (RfFreqHz < RTL2832_E4000_RF_BAND_BOUNDARY_HZ) ? 0 : 1;
-
-	// Get tuner LNA gain according to reading byte and table.
-	if(I2CReadByte(this, NO_USE, RTL2832_E4000_LNA_GAIN_ADDR, &ReadingByte) != E4000_I2C_SUCCESS)
-		goto error_status_get_tuner_registers;
-
-	TunerBitsLna = (ReadingByte & RTL2832_E4000_LNA_GAIN_MASK) >> RTL2832_E4000_LNA_GAIN_SHIFT;
-	TunerGainLna = LnaGainTable[TunerBitsLna][BandIndex];
-
-	// Get tuner LNA additional gain according to reading byte and table.
-	if(I2CReadByte(this, NO_USE, RTL2832_E4000_LNA_GAIN_ADD_ADDR, &ReadingByte) != E4000_I2C_SUCCESS)
-		goto error_status_get_tuner_registers;
-
-	TunerBitsLnaAdd = (ReadingByte & RTL2832_E4000_LNA_GAIN_ADD_MASK) >> RTL2832_E4000_LNA_GAIN_ADD_SHIFT;
-	TunerGainLnaAdd = LnaGainAddTable[TunerBitsLnaAdd];
-
-	// Get tuner mixer gain according to reading byte and table.
-	if(I2CReadByte(this, NO_USE, RTL2832_E4000_MIXER_GAIN_ADDR, &ReadingByte) != E4000_I2C_SUCCESS)
-		goto error_status_get_tuner_registers;
-
-	TunerBitsMixer = (ReadingByte & RTL2832_E4000_MIXER_GAIN_MASK) >> RTL2832_E4000_LNA_GAIN_ADD_SHIFT;
-	TunerGainMixer = MixerGainTable[TunerBitsMixer][BandIndex];
-
-	// Get tuner IF stage 1 gain according to reading byte and table.
-	if(I2CReadByte(this, NO_USE, RTL2832_E4000_IF_STAGE_1_GAIN_ADDR, &ReadingByte) != E4000_I2C_SUCCESS)
-		goto error_status_get_tuner_registers;
-
-	TunerBitsIfStage1 = (ReadingByte & RTL2832_E4000_IF_STAGE_1_GAIN_MASK) >> RTL2832_E4000_IF_STAGE_1_GAIN_SHIFT;
-	TunerGainIfStage1 = IfStage1GainTable[TunerBitsIfStage1];
-
-	// Get tuner IF stage 2 gain according to reading byte and table.
-	if(I2CReadByte(this, NO_USE, RTL2832_E4000_IF_STAGE_2_GAIN_ADDR, &ReadingByte) != E4000_I2C_SUCCESS)
-		goto error_status_get_tuner_registers;
-
-	TunerBitsIfStage2 = (ReadingByte & RTL2832_E4000_IF_STAGE_2_GAIN_MASK) >> RTL2832_E4000_IF_STAGE_2_GAIN_SHIFT;
-	TunerGainIfStage2 = IfStage2GainTable[TunerBitsIfStage2];
-
-	// Get tuner IF stage 3 gain according to reading byte and table.
-	if(I2CReadByte(this, NO_USE, RTL2832_E4000_IF_STAGE_3_GAIN_ADDR, &ReadingByte) != E4000_I2C_SUCCESS)
-		goto error_status_get_tuner_registers;
-
-	TunerBitsIfStage3 = (ReadingByte & RTL2832_E4000_IF_STAGE_3_GAIN_MASK) >> RTL2832_E4000_IF_STAGE_3_GAIN_SHIFT;
-	TunerGainIfStage3 = IfStage3GainTable[TunerBitsIfStage3];
-
-	// Get tuner IF stage 4 gain according to reading byte and table.
-	if(I2CReadByte(this, NO_USE, RTL2832_E4000_IF_STAGE_4_GAIN_ADDR, &ReadingByte) != E4000_I2C_SUCCESS)
-		goto error_status_get_tuner_registers;
-
-	TunerBitsIfStage4 = (ReadingByte & RTL2832_E4000_IF_STAGE_4_GAIN_MASK) >> RTL2832_E4000_IF_STAGE_4_GAIN_SHIFT;
-	TunerGainIfStage4 = IfStage4GainTable[TunerBitsIfStage4];
-
-	// Get tuner IF stage 5 gain according to reading byte and table.
-	if(I2CReadByte(this, NO_USE, RTL2832_E4000_IF_STAGE_5_GAIN_ADDR, &ReadingByte) != E4000_I2C_SUCCESS)
-		goto error_status_get_tuner_registers;
-
-	TunerBitsIfStage5 = (ReadingByte & RTL2832_E4000_IF_STAGE_5_GAIN_MASK) >> RTL2832_E4000_IF_STAGE_5_GAIN_SHIFT;
-	TunerGainIfStage5 = IfStage5GainTable[TunerBitsIfStage5];
-
-	// Get tuner IF stage 6 gain according to reading byte and table.
-	if(I2CReadByte(this, NO_USE, RTL2832_E4000_IF_STAGE_6_GAIN_ADDR, &ReadingByte) != E4000_I2C_SUCCESS)
-		goto error_status_get_tuner_registers;
-
-	TunerBitsIfStage6 = (ReadingByte & RTL2832_E4000_IF_STAGE_6_GAIN_MASK) >> RTL2832_E4000_IF_STAGE_6_GAIN_SHIFT;
-	TunerGainIfStage6 = IfStage6GainTable[TunerBitsIfStage6];
-
-	// Calculate tuner total gain.
-	// Note: The unit of tuner total gain is 0.1 dB.
-	TunerGainTotal = TunerGainLna + TunerGainLnaAdd + TunerGainMixer + 
-	                 TunerGainIfStage1 + TunerGainIfStage2 + TunerGainIfStage3 + TunerGainIfStage4 +
-	                 TunerGainIfStage5 + TunerGainIfStage6;
-
-	// Calculate tuner input power.
-	// Note: The unit of tuner input power is 0.1 dBm
-	TunerInputPower = RTL2832_E4000_TUNER_OUTPUT_POWER_UNIT_0P1_DBM - TunerGainTotal;
-
-/*	AfxTrace(_T("Current gain state:\n"
-		"\tFreq:\t%i kHz\n"
-		"\tBW:\t%i kHz\n"
-		"\tLNA:\t%.1f dB\n"
-		"\tLNA+:\t%.1f dB\n"
-		"\tMixer:\t%.1f dB\n"
-		"\tIF 1:\t%.1f dB\n"
-		"\tIF 2:\t%.1f dB\n"
-		"\tIF 3:\t%.1f dB\n"
-		"\tIF 4:\t%.1f dB\n"
-		"\tIF 5:\t%.1f dB\n"
-		"\tIF 6:\t%.1f dB\n"
-		"\tTotal:\t%.1f dB\n"
-		"\tPower:\t%.1f dBm\n"),
-		RfFreqKhz,
-		BandwidthKhz,
-		(float)TunerGainLna/10.0f,
-		(float)TunerGainLnaAdd/10.0f,
-		(float)TunerGainMixer/10.0f,
-		(float)TunerGainIfStage1/10.0f,
-		(float)TunerGainIfStage2/10.0f,
-		(float)TunerGainIfStage3/10.0f,
-		(float)TunerGainIfStage4/10.0f,
-		(float)TunerGainIfStage5/10.0f,
-		(float)TunerGainIfStage6/10.0f,
-		(float)TunerGainTotal/10.0f,
-		(float)TunerInputPower/10.0f);
-*/
-	// Determine tuner gain mode according to tuner input power.
-	// Note: The unit of tuner input power is 0.1 dBm
-	switch (m_iTunerGainMode)
-	{
-		default:
-		case RTL2832_E4000_TUNER_GAIN_SENSITIVE:
-			if(TunerInputPower > -650)
-				TunerGainMode = RTL2832_E4000_TUNER_GAIN_NORMAL;
-			break;
-
-		case RTL2832_E4000_TUNER_GAIN_NORMAL:
-			if(TunerInputPower < -750)
-				TunerGainMode = RTL2832_E4000_TUNER_GAIN_SENSITIVE;
-			if(TunerInputPower > -400)
-				TunerGainMode = RTL2832_E4000_TUNER_GAIN_LINEAR;
-			break;
-
-		case RTL2832_E4000_TUNER_GAIN_LINEAR:
-			if(TunerInputPower < -500)
-				TunerGainMode = RTL2832_E4000_TUNER_GAIN_NORMAL;
-			break;
-	}
-
-	if (TunerGainMode == -1)
-		TunerGainMode = m_iTunerGainMode;
-
-	if (m_iTunerGainMode != TunerGainMode)
-	{
-		switch (TunerGainMode)
-		{
-			case RTL2832_E4000_TUNER_GAIN_SENSITIVE:
-				if (E4000_sensitivity(this, (int)(GetFreq()/1000.0), BANDWIDTH/1000) != E4000_I2C_SUCCESS)
-					goto error_status_get_tuner_registers;
-				AfxTrace(_T("Tuner gain mode: sensitive\n"));
-				break;
-			case RTL2832_E4000_TUNER_GAIN_LINEAR:
-				if (E4000_linearity(this, (int)(GetFreq()/1000.0), BANDWIDTH/1000) != E4000_I2C_SUCCESS)
-					goto error_status_get_tuner_registers;
-				AfxTrace(_T("Tuner gain mode: linear\n"));
-				break;
-			case RTL2832_E4000_TUNER_GAIN_NORMAL:
-			default:
-				if (E4000_nominal(this, (int)(GetFreq()/1000.0), BANDWIDTH/1000) != E4000_I2C_SUCCESS)
-					goto error_status_get_tuner_registers;
-				AfxTrace(_T("Tuner gain mode: nominal\n"));
-				break;
-		}
-
-		m_iTunerGainMode = TunerGainMode;
-	}
-
-	goto set_tuner_mode_complete;
-
-error_status_get_tuner_registers:
-	AfxTrace(_T("Failed to set tuner gain mode\n"));
-set_tuner_mode_complete:
-	set_i2c_repeater(0);
-	return TunerGainMode;
 }

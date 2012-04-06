@@ -5,7 +5,6 @@
 #include "socketClient.h"
 #include "IUSRP.h"
 #include "BorIP.h"
-//#include "FUNcubeDongle.h"
 #include "PluginFactory.h"
 
 static void AFX_CDECL _AfxTrace(LPCTSTR lpszFormat, ...)
@@ -648,7 +647,7 @@ bool Server::CreateDevice(LPCTSTR strHint /*= NULL*/)
 	if (bFCD)
 		m_pUSRP = PF_CREATE(FUNcubeDongle);
 	else if (bRTL)
-		m_pUSRP = PF_CREATE(rtl2832);
+		m_pUSRP = PF_CREATE(RTL2832);
 	else if (iIndex > -1)
 		m_pUSRP = PF_CREATE(LegacyUSRP);
 	else

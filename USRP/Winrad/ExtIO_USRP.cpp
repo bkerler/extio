@@ -5,8 +5,6 @@
 #include "socketClientWaitable.h"
 #include "BorIP.h"
 #include "MemoryUSRP.h"
-//#include "FUNcubeDongle.h"
-//#include "rtl2832.h"
 
 #include "PluginFactory.h"
 
@@ -253,21 +251,21 @@ bool ExtIO_USRP::Open(LPCTSTR strHint /*= NULL*/, LPCTSTR strAddress /*= NULL*/)
 		}
 		else if (bRTL)
 		{
-			m_pDialog->_Log(_T("Creating rtl2832 device..."));
+			m_pDialog->_Log(_T("Creating RTL2832 device..."));
 
-			//m_pUSRP = new rtl2832();
-			m_pUSRP = PF_CREATE(rtl2832);
+			//m_pUSRP = new RTL2832();
+			m_pUSRP = PF_CREATE(RTL2832);
 		}
 		else if (iIndex > -1)
 		{
-			m_pDialog->_Log(_T("Creating legacy device..."));
+			m_pDialog->_Log(_T("Creating legacy USRP device..."));
 
 			//m_pUSRP = new LegacyUSRP();
 			m_pUSRP = PF_CREATE(LegacyUSRP);
 		}
 		else
 		{
-			m_pDialog->_Log(_T("Creating UHD device..."));
+			m_pDialog->_Log(_T("Creating UHD USRP device..."));
 
 			//m_pUSRP = new USRP();
 			m_pUSRP = PF_CREATE(USRP);
@@ -308,12 +306,20 @@ bool ExtIO_USRP::Open(LPCTSTR strHint /*= NULL*/, LPCTSTR strAddress /*= NULL*/)
 
 		if (m_strDevice.IsEmpty() == false)
 		{
-			if (AfxMessageBox(_T("Failed to create USRP: ") + m_strDevice + _T("\n\n(") + m_pUSRP->GetLastError() + _T(")\n\nTry without device hint?"), MB_ICONWARNING | MB_YESNO | MB_DEFBUTTON2) == IDYES)
+			bool bOfferRetry = false;
+			CString strError = _T("Failed to create device: ") + m_strDevice + _T("\n\n(") + m_pUSRP->GetLastError() + _T(")");
+			//if (CAN_CAST(m_pUSRP, USRP))
+			{
+				bOfferRetry = true;
+				strError += _T("\n\nTry with default device hint?");
+			}
+
+			if ((AfxMessageBox(strError, MB_ICONWARNING | (bOfferRetry ? (MB_YESNO | MB_DEFBUTTON2) : MB_OK)) == IDYES) && (bOfferRetry))
 			{
 				if (m_pUSRP->Create() == false)
 				{
 					m_pDialog->_Log(_T("Failed to create default device: ") + m_pUSRP->GetLastError());
-					AfxMessageBox(_T("Failed to create default USRP even without device hint:\n\n") + m_pUSRP->GetLastError());
+					AfxMessageBox(_T("Failed to create default device even without device hint:\n\n") + m_pUSRP->GetLastError());
 
 					SAFE_DELETE(m_pUSRP);
 					return false;
@@ -327,7 +333,7 @@ bool ExtIO_USRP::Open(LPCTSTR strHint /*= NULL*/, LPCTSTR strAddress /*= NULL*/)
 		}
 		else
 		{
-			AfxMessageBox(_T("Failed to create USRP without device hint:\n\n") + m_pUSRP->GetLastError());
+			AfxMessageBox(_T("Failed to create device without device hint:\n\n") + m_pUSRP->GetLastError());
 
 			SAFE_DELETE(m_pUSRP);
 			return false;
@@ -457,7 +463,10 @@ void ExtIO_USRP::Close()
 
 	/////////////////////////////////////
 
-	if ((m_pUSRP) && (m_bError) && (CAN_CAST(m_pUSRP, RemoteUSRP) == false))
+	if ((m_pUSRP) && (m_bError) &&
+		//(CAN_CAST(m_pUSRP, RemoteUSRP) == false)
+		(CAN_CAST(m_pUSRP, USRP) || CAN_CAST(m_pUSRP, LegacyUSRP))
+		)
 	{
 		if (AfxMessageBox(_T("An error occurred at some point.\n\nThere is a chance that the program will hang when cleaning up\nif your USRP has been disconnected while it was running.\n\nDo you want to skip the clean-up just in case?"), MB_YESNO | MB_ICONWARNING | MB_DEFBUTTON1) == IDYES)
 		{
@@ -644,7 +653,7 @@ retry_start:
 		int iResult = IDRETRY;
 
 		//if (CAN_CAST(m_pUSRP, RemoteUSRP) == false)
-			iResult = AfxMessageBox(_T("Failed to set some USRP parameters.\nThis is probably due to your device being disconnected.\nMake sure it is connected before continuing!\n\nAbort:\tStop\nRetry:\tAttempt to re-create device (probably will not work if device link was broken)\nIgnore:\tContinue (expect things to break/hang)"), MB_ABORTRETRYIGNORE | MB_ICONWARNING | MB_DEFBUTTON2);
+			iResult = AfxMessageBox(_T("Failed to set some device parameters.\nThis is probably due to your device being disconnected.\nMake sure it is connected before continuing!\n\nAbort:\tStop\nRetry:\tAttempt to re-create device (probably will not work if device link was broken)\nIgnore:\tContinue (expect things to break/hang)"), MB_ABORTRETRYIGNORE | MB_ICONWARNING | MB_DEFBUTTON2);
 
 		if (iResult == IDABORT)
 		{
@@ -676,7 +685,7 @@ retry_start:
 
 			if (Open() == false)
 			{
-				AfxMessageBox(_T("Failed to re-create device.\n\nPlease check your USRP and re-start the program."));
+				AfxMessageBox(_T("Failed to re-create device.\n\nPlease check your device and re-start the program."));
 				Signal(CS_Stop);
 				return 0;
 			}
@@ -696,7 +705,7 @@ retry_start:
 	{
 		m_pDialog->_Log(_T("While starting streaming: ") + m_pUSRP->GetLastError());
 		Signal(CS_Stop);
-		AfxMessageBox(_T("Failed to start USRP:\n\n") + m_pUSRP->GetLastError());
+		AfxMessageBox(_T("Failed to start device:\n\n") + m_pUSRP->GetLastError());
 		return 0;
 	}
 
