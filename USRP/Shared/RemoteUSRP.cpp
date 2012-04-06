@@ -30,6 +30,7 @@ RemoteUSRP::RemoteUSRP(CRuntimeClass* pSocket /*= NULL*/)
 	, m_usCounter(0)
 	, m_nNetworkOverrun(0)
 	, m_nBufferOverrun(0)
+	, m_nShortPackets(0)
 	, m_nLastSkip(0)
 	, m_pSocketClass(pSocket)
 	, m_hAbortPump(NULL)
@@ -83,7 +84,7 @@ void RemoteUSRP::Reset()
 
 		m_nNetworkBufferStart = m_nNetworkBufferItems = 0;
 		m_usCounter = 0;
-		m_nNetworkOverrun = m_nBufferOverrun = m_nLastSkip = 0;
+		m_nNetworkOverrun = m_nBufferOverrun = m_nShortPackets = m_nLastSkip = 0;
 		m_nPacketsReceived = 0;
 	}
 }
@@ -772,7 +773,7 @@ CString RemoteUSRP::GetExtraInfo() const
 {
 	CString str;
 
-	str.Format(_T("Overruns: buffer %lu, network %lu (skipped %lu)"), m_nBufferOverrun, m_nNetworkOverrun, m_nLastSkip);
+	str.Format(_T("Overruns: buffer %lu, network %lu (skipped %lu, short %lu)"), m_nBufferOverrun, m_nNetworkOverrun, m_nLastSkip, m_nShortPackets);
 
 	return str;
 }
@@ -1032,6 +1033,7 @@ DWORD RemoteUSRP::ReceiveThread()
 		}
 		else if (dwReceived != m_nPacketSize)
 		{
+			++m_nShortPackets;
 			continue;
 		}
 

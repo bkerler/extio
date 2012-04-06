@@ -320,7 +320,7 @@ __declspec(dllexport) bool __stdcall InitHW(char *name, char *model, int& type)
 
 	type = 3;	// H/W type
 
-	_tcscpy_s(name, 16, "USRP");
+	_tcscpy_s(name, 16, "USRP");	// /FCD/RTL2832/BorIP
 
 	{
 		AFX_MANAGE_STATE(AfxGetStaticModuleState());

@@ -923,7 +923,7 @@ DWORD Server::Worker()
 
 		int iSamplesRead = m_pUSRP->ReadPacket();
 
-		if (iSamplesRead == -1)
+		if (iSamplesRead <= -1)
 		{
 			{
 				CSingleLock lock(&m_cs, TRUE);
@@ -983,14 +983,25 @@ DWORD Server::Worker()
 
 		// All packet manipulation must come before copying of payload in case of headerless transmission!
 
-		int iLength = (m_bHeaderless ? 0 : offsetof(BOR_PACKET, data));
-		int iPayloadLength = m_pUSRP->GetSamplesPerPacket() * 2 * sizeof(short);
-		iLength += iPayloadLength;
-
-		memcpy((m_bHeaderless ? p : pPacket->data), m_pUSRP->GetBuffer(), iPayloadLength);
+		int iPayloadLength = /*m_pUSRP->GetSamplesPerPacket()*/iSamplesRead * 2 * sizeof(short);
 
 		if (m_fileDump.m_hFile != CFile::hFileNull)
-			m_fileDump.Write((m_bHeaderless ? p : pPacket->data), iPayloadLength);
+			m_fileDump.Write(m_pUSRP->GetBuffer(), iPayloadLength);
+
+		int iLength = (m_bHeaderless ? 0 : offsetof(BOR_PACKET, data)) + iPayloadLength;
+
+		if ((UINT)iLength > m_nMaxPacketSize)
+		{
+			CSingleLock lock(&m_cs, TRUE);
+			++m_nShortReads;
+
+			//AfxTrace(_T("Payload length %i > max packet size %lu (truncating)\n"), iLength, m_nMaxPacketSize);
+
+			iLength = (int)m_nMaxPacketSize;
+			iPayloadLength = iLength - (m_bHeaderless ? 0 : offsetof(BOR_PACKET, data));
+		}
+
+		memcpy((m_bHeaderless ? p : pPacket->data), m_pUSRP->GetBuffer(), iPayloadLength);
 
 		//////////////////////////////////////////////
 
