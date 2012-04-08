@@ -35,8 +35,8 @@ RequestExecutionLevel admin
 
 #######################################
 
-!define PRODUCT_NAME		"ExtIO_USRP+FCD + BorIP"
-!define PRODUCT_VERSION		"1.1"
+!define PRODUCT_NAME		"ExtIO_USRP+FCD+RTL2832 + BorIP"
+!define PRODUCT_VERSION		"1.2 BETA"
 !define PRODUCT_PUBLISHER	"balint@spench.net"
 !define MAIN_COMMENT		"ExtIO_USRP+FCD plugin for Winrad-compatible SDR receivers && BorIP USRP+FCD Server"
 
@@ -78,7 +78,7 @@ Var StartMenuFolder
 
 	!define MUI_WELCOMEPAGE_TITLE "Installer for ${PRODUCT_NAME} ${PRODUCT_VERSION}"
 	!define MUI_WELCOMEPAGE_TITLE_3LINES # Extra space for the title area
-	!define MUI_WELCOMEPAGE_TEXT "The ExtIO_USRP+FCD plugin will allow you to use your USRP/FCD hardware with the Winrad-series of SDR applications.$\n$\nBorIP will allow you to do this remotely over a network.$\n$\nData from both can be sent to other applications, such as the UDP Source block in GNU Radio/GRC.$\n$\nPress Next to continue."
+	!define MUI_WELCOMEPAGE_TEXT "The ExtIO_USRP+FCD+RTL2832 plugin will allow you to use your USRP/FCD hardware with the Winrad-series of SDR applications.$\n$\nBorIP will allow you to do this remotely over a network.$\n$\nData from both can be sent to other applications, such as the UDP Source block in GNU Radio/GRC.$\n$\nPress Next to continue."
 !insertmacro MUI_PAGE_WELCOME
 
 !insertmacro MUI_PAGE_LICENSE "License.rtf"
@@ -86,7 +86,7 @@ Var StartMenuFolder
 	!define MUI_COMPONENTSPAGE_SMALLDESC
 !insertmacro MUI_PAGE_COMPONENTS
 
-	!define MUI_DIRECTORYPAGE_TEXT_TOP	"If you want to use the ExtIO_USRP+FCD plugin (and optionally BorIP), select your EXISTING ExtIO-compatible SDR receiver application's installation folder (i.e. where you installed HDSDR/Winrad/etc).$\n$\nIf you are performing a FRESH install of the receiver app (i.e. it is not yet installed), create the receiver directory below and select the same one during installation of the receiver itself.$\n$\nIf you ONLY want to use BorIP, create a new folder of your choice."
+	!define MUI_DIRECTORYPAGE_TEXT_TOP	"- If you want to use the ExtIO plugin (and optionally BorIP), select your EXISTING ExtIO-compatible SDR receiver's installation folder (where you installed HDSDR/etc).$\n$\n- If you are performing a FRESH install of the receiver app (i.e. it is not yet installed), create the receiver directory below and select the same one during installation of the receiver itself.$\n$\n- If you ONLY want to use BorIP, create a new folder of your choice."
 	!define MUI_DIRECTORYPAGE_VARIABLE	$INSTDIR	# $MainFolder
 !insertmacro MUI_PAGE_DIRECTORY
 
@@ -214,6 +214,7 @@ Section "!${PRODUCT_NAME}" secMain
 	
 	File "Release\libusb-1.0.dll"
 	File "Release\libusrp.dll"
+	File "Release\librtl2832++.dll"
 	File "Release\uhd.dll"
 	#File "Release\usrp1_fw.ihx"
 	#File "Release\usrp1_fpga.rbf"
@@ -388,13 +389,20 @@ borip_continue:
 	
 	Delete "$INSTDIR\libusb-1.0.dll"
 	Delete "$INSTDIR\libusrp.dll"
+	Delete "$INSTDIR\librtl2832++.dll"
 	Delete "$INSTDIR\uhd.dll"
-	Delete "$INSTDIR\usrp1_fw.ihx"
-	Delete "$INSTDIR\usrp1_fpga.rbf"
-	Delete "$INSTDIR\usrp1_fpga_4rx.rbf"
 	RMDir /r "$INSTDIR\rev4"
 	Delete "$INSTDIR\libusb0.dll"
 	Delete "$INSTDIR\zadig.exe"
+	
+	#Delete "$INSTDIR\usrp1_fw.ihx"
+	#Delete "$INSTDIR\usrp1_fpga.rbf"
+	#Delete "$INSTDIR\usrp1_fpga_4rx.rbf"
+	RMDir /r "$INSTDIR\bit"
+	Delete "$INSTDIR\*.bin"
+	Delete "$INSTDIR\*.ihx"
+	Delete "$INSTDIR\*.rbf"
+	Delete "$INSTDIR\*.tag"
 	
 	IfFileExists "${DOWNLOAD_LOCATION}" 0 continue
 		MessageBox MB_YESNO|MB_ICONQUESTION "Would you like to delete the files the installer downloaded from:$\n$\n${DOWNLOAD_LOCATION}" IDYES true IDNO continue

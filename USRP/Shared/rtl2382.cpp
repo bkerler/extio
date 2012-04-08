@@ -183,7 +183,7 @@ bool RTL2832::Create(LPCTSTR strHint /*= NULL*/)
 				}
 				else if (strPart == _T("tuner"))
 				{
-					strcpy_s(m_demod_params.tuner_name, rtl2832::demod::TUNER_NAME_LEN, CStringA(strArg));
+					strcpy_s(m_demod_params.tuner_name, /*rtl2832::demod::*/RTL2832_TUNER_NAME_LEN, CStringA(strArg));
 				}
 				else if (strPart == _T("autogainmode"))
 				{
