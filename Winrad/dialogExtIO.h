@@ -54,7 +54,7 @@ public:
 	void _Log(const CString& str);
 	int _LoadCombo(CComboBox& cntrl, LPCTSTR strName, bool bSelectFirst = false);
 	void _StoreCombo(CComboBox& cntrl, LPCTSTR strName);
-	void _UpdateCombo(CComboBox& cntrl/*, CString& str*/);
+	int _UpdateCombo(CComboBox& cntrl/*, CString& str*/, LPCTSTR str = NULL, bool bAddToEnd = false, bool bNoSelection = false);
 //public:
 	//void myFilterToolTipMessage(MSG* pMsg);
 	//virtual BOOL PreTranslateMessage(MSG* pMsg);

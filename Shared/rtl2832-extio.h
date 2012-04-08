@@ -12,7 +12,8 @@ private:
 	bool* m_pMonitor;
 public:
 	LogMonitor(bool& bMonitor)
-	{ bMonitor = true; m_pMonitor = &bMonitor; }
+		: m_pMonitor(&bMonitor)
+	{ bMonitor = true; }
 	~LogMonitor()
 	{ (*m_pMonitor) = false; }
 };

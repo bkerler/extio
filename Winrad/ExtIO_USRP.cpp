@@ -300,7 +300,7 @@ bool ExtIO_USRP::Open(LPCTSTR strHint /*= NULL*/, LPCTSTR strAddress /*= NULL*/)
 	if ((m_bRemoteDevice == FALSE) && (m_strDevice == _T("-")))
 		strFilteredDevice.Empty();
 
-	if (m_pUSRP->Create(m_strDevice) == false)
+	if (m_pUSRP->Create(strFilteredDevice) == false)
 	{
 		m_pDialog->_Log(_T("Failed to create device: ") + m_pUSRP->GetLastError());
 
@@ -527,7 +527,17 @@ int ExtIO_USRP::SetLO(ULONG lFreq)
 		return 1;
 	}
 
-	return m_pUSRP->WasTuneSuccessful(/*m_pUSRP->GetTuneResult()*/);	// Return 0 if the frequency is within the limits the HW can generate
+	int result = m_pUSRP->WasTuneSuccessful(/*m_pUSRP->GetTuneResult()*/);	// Return 0 if the frequency is within the limits the HW can generate
+	if (result != 0)
+		return result;
+
+	if (lFreq != (ULONG)m_pUSRP->GetFreq())
+	{
+		AfxTrace(_T("Frequency mismatch: %lu != %lu\n"), lFreq, (ULONG)m_pUSRP->GetFreq());
+		Signal(CS_LOChange);
+	}
+
+	return 0;
 }
 
 void ExtIO_USRP::SetTunedFrequency(long lFreq)
