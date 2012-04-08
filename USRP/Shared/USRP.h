@@ -39,11 +39,11 @@ public:
 	virtual std::vector<std::string> GetAntennas() const;
 	//virtual SetClock();
 	virtual int ReadPacket();
-/*public:
-	virtual bool CopyState(IUSRPConfiguration* pOther);
-	virtual void ResetStats();
-	virtual int WasTuneSuccessful();
 public:
+	//virtual bool CopyState(IUSRPConfiguration* pOther);
+	//virtual void ResetStats();
+	virtual int WasTuneSuccessful();
+/*public:
 	//inline double GetSampleRate() const
 	//{ return m_sample_rate; }
 	virtual inline double GetDesiredSampleRate() const
@@ -234,6 +234,8 @@ public:
 	virtual std::vector<std::string> GetAntennas() const;
 	//virtual SetClock();
 	virtual int ReadPacket();
+public:
+	virtual int WasTuneSuccessful();
 public:
 	virtual inline double GetSampleRate() const
 	{

@@ -240,7 +240,18 @@ BOOL CdialogExtIO::OnInitDialog()
 	//m_cntrlSlider_Gain.SetRange(0, 100);
 
 	SetDlgItemText(IDC_EDIT_DEVICE_HINT, m_pUSRP->GetDevice());
+
+	LPCTSTR strExampleHints[] = {	// FIXME: Build this dynamically from registered interfaces
+		_T("-"),
+		_T("0"),
+		_T("FCD"),
+		_T("RTL")
+	};
+	for (int i = 0; i < sizeof(strExampleHints)/sizeof(strExampleHints[0]); ++i)
+		m_cntrlCombo_DeviceHint.AddString(strExampleHints[i]);
+
 	_LoadCombo(m_cntrlCombo_DeviceHint, _T("Device hints")/*, true*/);
+
 	if (m_pUSRP->GetDevice().IsEmpty() == false)
 	{
 		m_cntrlCombo_DeviceHint.SetWindowText(m_pUSRP->GetDevice());
@@ -1247,7 +1258,8 @@ int CdialogExtIO::_LoadCombo(CComboBox& cntrl, LPCTSTR strName, bool bSelectFirs
 		while ((*pTok))
 		{
 			CString str(pTok);
-			iLast = cntrl.AddString(str);
+			//iLast = cntrl.AddString(str);
+			iLast = _UpdateCombo(cntrl, str, true/*, true*/);
 
 			while ((*++pTok));
 
@@ -1295,26 +1307,56 @@ void CdialogExtIO::_StoreCombo(CComboBox& cntrl, LPCTSTR strName)
 
 	key.SetMultiStringValue(strName, ch);
 }
+/*
+static int _FindComboString(CComboBox& cntrl, LPCTSTR strFind)
+{
+	if (strFind == NULL)
+		return -1;
 
-void CdialogExtIO::_UpdateCombo(CComboBox& cntrl/*, CString& str*/)
+	for (int i = 0; i < cntrl.GetCount(); ++i)
+	{
+		CString str;
+		cntrl.GetLBText(i, str);
+		if (str.Compare(strFind) == 0)
+			return i;
+	}
+
+	return -1;
+}
+*/
+int CdialogExtIO::_UpdateCombo(CComboBox& cntrl/*, CString& str*/, LPCTSTR str /*= NULL*/, bool bAddToEnd /*= false*/, bool bNoSelection /*= false*/)
 {
 	CString strCurrent;
-	cntrl.GetWindowText(strCurrent);
-	if (strCurrent.IsEmpty())
-		return;
 
-	int iIndex = cntrl.FindStringExact(0, strCurrent);
-	if (iIndex == -1)
-	{
-		cntrl.InsertString(0, strCurrent);
-		cntrl.SetCurSel(0);	// This is necessary, otherwise 'UpdateData' will empty string of edit control
-	}
-	else if (iIndex > 0)
-	{
+	if (IS_EMPTY(str))
+		cntrl.GetWindowText(strCurrent);
+	else
+		strCurrent = str;
+
+	if (strCurrent.IsEmpty())
+		return cntrl.GetCount();
+
+	
+
+	int iIndex = cntrl.FindStringExact(-1, strCurrent);	// -1: search entire list
+	//int iIndex = _FindComboString(cntrl, strCurrent);
+	if (iIndex >= 0)
 		cntrl.DeleteString(iIndex);
-		cntrl.InsertString(0, strCurrent);
-		cntrl.SetCurSel(0);	// This is necessary, otherwise 'UpdateData' will empty string of edit control
+
+	if (bAddToEnd)
+	{
+		cntrl.AddString(strCurrent);
+		if (bNoSelection == false)
+			cntrl.SetCurSel(cntrl.GetCount() - 1);	// This is necessary, otherwise 'UpdateData' will empty string of edit control
 	}
+	else
+	{
+		cntrl.InsertString(0, strCurrent);
+		if (bNoSelection == false)
+			cntrl.SetCurSel(0);	// This is necessary, otherwise 'UpdateData' will empty string of edit control
+	}
+
+	return cntrl.GetCount();
 }
 
 void CdialogExtIO::OnBnClickedButtonAbout()

@@ -1,5 +1,5 @@
+* Report valid sample rate range
 * Check all ReadPacket rate generation (like in RTL)
-* Notify HW LO changed due to freq rounding in RTL? (generic check in ExtIO_USRP)
 
 * Use real_rate or rounded? Chipmunks at fractional?
 

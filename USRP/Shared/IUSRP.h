@@ -118,7 +118,8 @@ public:
 */public:
 	virtual bool CopyState(IUSRPConfiguration* pOther);
 	virtual void ResetStats();
-	virtual int WasTuneSuccessful();
+	virtual int WasTuneSuccessful()
+	{ return 0; }
 public:
 	virtual void CopyFrom(const IUSRPConfiguration* pOther)
 	{ return USRPConfiguration::CopyFrom(pOther); }

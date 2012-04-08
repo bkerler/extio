@@ -38,7 +38,7 @@ RTL2832::RTL2832()
 
 	m_strAntenna = _T("(Default)");
 	m_recv_samples_per_packet = /*READLEN / RAW_SAMPLE_SIZE*/4096;	// Already on 512-byte boundary (after converting to shorts, will still be)
-	//m_dSampleRate = m_fpga_master_clock_freq;1000000;	// Use ExtIO default instead
+	m_dSampleRate = 1000000;
 
 	QueryPerformanceFrequency(&m_liFreq);
 }
@@ -256,7 +256,7 @@ bool RTL2832::Create(LPCTSTR strHint /*= NULL*/)
 
 	m_gainRange =  uhd::gain_range_t(gr.first, gr.second, dGainStep);
 
-	m_fpga_master_clock_freq = m_demod.crystal_frequency();
+	m_fpga_master_clock_freq = /*m_demod.crystal_frequency()*/3200000;
 
 	if (bAutoGainMode)
 	{

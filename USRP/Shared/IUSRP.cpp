@@ -58,19 +58,6 @@ void USRPSkeleton::ResetStats()
 	m_nOverflows = 0;
 }
 
-int USRPSkeleton::WasTuneSuccessful(/*const uhd::tune_result_t& tuneResult*/)
-{
-	//AfxTrace(_T("Tune result: %s\n"), m_tuneResult.to_pp_string().c_str());
-
-	double d = USRPConfiguration::GetFreq();	// FIXME: Does this make sense?
-	if (fabs(m_dFreq - d) >= 1.0)
-	{
-		return ((m_dFreq > d) ? 1 : -1);
-	}
-
-	return 0;
-}
-
 bool USRPSkeleton::CopyState(IUSRPConfiguration* pOther)
 {
 	if (pOther == NULL)

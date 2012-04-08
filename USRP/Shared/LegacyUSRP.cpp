@@ -357,6 +357,19 @@ double LegacyUSRP::SetFreq(double dFreq)
 	return (m_dFreq = m_tuneResult./*actual_inter_freq*/actual_rf_freq + m_tuneResult.actual_dsp_freq);
 }
 
+int LegacyUSRP::WasTuneSuccessful(/*const uhd::tune_result_t& tuneResult*/)
+{
+	//AfxTrace(_T("Tune result: %s\n"), m_tuneResult.to_pp_string().c_str());
+
+	double d = USRPConfiguration::GetFreq();
+	if (fabs(m_dFreq - d) >= 1.0)
+	{
+		return ((m_dFreq > d) ? 1 : -1);
+	}
+
+	return 0;
+}
+
 double LegacyUSRP::SetSampleRate(double dSampleRate)
 {
 	m_strLastError.Empty();
