@@ -398,7 +398,7 @@ void Server::OnCommand(CsocketClient* pSocket, const CString& str)
 		{
 			if (m_pUSRP->IsRunning())
 			{
-				strResult = _T("RUNNING");
+				strResult += _T(" RUNNING");
 			}
 			else
 			{
@@ -414,7 +414,7 @@ void Server::OnCommand(CsocketClient* pSocket, const CString& str)
 		if (m_pUSRP)
 		{
 			if (m_pUSRP->IsRunning() == false)
-				strResult = _T("STOPPED");
+				strResult += _T(" STOPPED");
 
 			Stop();
 		}

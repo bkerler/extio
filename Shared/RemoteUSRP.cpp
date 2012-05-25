@@ -173,6 +173,12 @@ teh_pump_message_loop:
 	{
 		//WaitMessage();
 
+		if (WaitForSingleObject(m_hAbortPump, 0) == WAIT_OBJECT_0)	// Check this first, because 'MsgWaitForMultipleObjects' will check messages first
+		{
+			AfxTrace(_T("Aborting pumping of message loop\n"));
+			return false;
+		}
+
 		DWORD dw = MsgWaitForMultipleObjects(1, &m_hAbortPump, FALSE, INFINITE, QS_ALLINPUT);
 		if (dw == WAIT_OBJECT_0)
 		{
@@ -1080,28 +1086,31 @@ DWORD RemoteUSRP::ReceiveThread()
 
 			//AfxTrace(_T("Writing %lu bytes into packet index %lu (%lu items)\n"), dwReceived, nIndex, m_nNetworkBufferItems);
 
-			LPBYTE pDest = m_pNetworkBuffer + (m_nPacketSize * nIndex);
-
-			memcpy(pDest, pBuffer, dwReceived);
-
-			if (m_nNetworkBufferItems < m_nNetworkBufferSize)
+			if (m_pNetworkBuffer)
 			{
-				++m_nNetworkBufferItems;
-			}
-			else
-			{
-				m_nNetworkBufferStart = (m_nNetworkBufferStart + 1) % m_nNetworkBufferSize;
+				LPBYTE pDest = m_pNetworkBuffer + (m_nPacketSize * nIndex);
 
-				pPacket->flags |= BF_BUFFER_OVERRUN;
+				memcpy(pDest, pBuffer, dwReceived);
 
-				++m_nBufferOverrun;
-			}
+				if (m_nNetworkBufferItems < m_nNetworkBufferSize)
+				{
+					++m_nNetworkBufferItems;
+				}
+				else
+				{
+					m_nNetworkBufferStart = (m_nNetworkBufferStart + 1) % m_nNetworkBufferSize;
 
-			++m_usCounter;
-			++m_nPacketsReceived;
+					pPacket->flags |= BF_BUFFER_OVERRUN;
+
+					++m_nBufferOverrun;
+				}
+
+				++m_usCounter;
+				++m_nPacketsReceived;
 //AfxTrace(_T("Received: %I64lu\n"), m_nPacketsReceived);
-			if (m_nPacketsReceived > m_nPreBufferCount)
-				SetEvent(m_hPacketEvent);
+				if (m_nPacketsReceived > m_nPreBufferCount)
+					SetEvent(m_hPacketEvent);
+			}
 		}
 
 		// FIXME: Might have to check event if it never gets a chance to start overlapped I/O
