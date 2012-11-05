@@ -527,7 +527,7 @@ bool ExtIO_USRP::SetSampleRate(double dSampleRate)
 	return true;
 }
 
-int ExtIO_USRP::SetLO(ULONG lFreq)
+int ExtIO_USRP::SetLO(__int64 lFreq)
 {
 	if (m_bUseOffset)
 		lFreq += m_lOffset;
@@ -560,7 +560,7 @@ int ExtIO_USRP::SetLO(ULONG lFreq)
 	return 0;
 }
 
-void ExtIO_USRP::SetTunedFrequency(long lFreq)
+void ExtIO_USRP::SetTunedFrequency(__int64 lFreq)
 {
 	if (m_bUseOffset)
 		lFreq += m_lOffset;
@@ -604,7 +604,7 @@ void ExtIO_USRP::SetTunedFrequency(long lFreq)
 	//PostMessage
 }
 
-void ExtIO_USRP::SetIFLimits(long lLow, long lHigh)
+void ExtIO_USRP::SetIFLimits(__int64 lLow, __int64 lHigh)
 {
 	if (m_bUseOffset)
 	{

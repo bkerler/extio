@@ -80,7 +80,8 @@
 
 #include <TehBase\TehUtils.h>
 
-#include <uhd/usrp/single_usrp.hpp>
+//#include <uhd/usrp/single_usrp.hpp>
+#include <uhd/usrp/multi_usrp.hpp>
 //#include <usrp/libusrp.h>
 
 #include <complex>

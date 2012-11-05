@@ -330,6 +330,8 @@ int CWinradUSRPApp::ExitInstance()
 	* Option to enable transverter frequency offset
 */
 
+//__int64 (__stdcall * pfnGetTune64)      (void);
+
 //---------------------------------------------------------------------------
 
 extern "C"
@@ -398,7 +400,7 @@ __declspec(dllexport) bool __stdcall OpenHW(void)
 //---------------------------------------------------------------------------
 
 extern "C"
-__declspec(dllexport) int __stdcall StartHW(long LOfreq)
+__declspec(dllexport) int __stdcall StartHW64(__int64 LOfreq)
 {
 	if (theApp._GetUSRP() == NULL)
 	{
@@ -417,6 +419,12 @@ __declspec(dllexport) int __stdcall StartHW(long LOfreq)
 
 		return nSampleRate;
 	}
+}
+
+extern "C"
+__declspec(dllexport) int __stdcall StartHW(long LOfreq)
+{
+	return StartHW64(LOfreq);
 }
 
 //---------------------------------------------------------------------------
@@ -474,7 +482,7 @@ __declspec(dllexport) int __stdcall GetStatus(void)
 //---------------------------------------------------------------------------
 
 extern "C"
-__declspec(dllexport) int __stdcall SetHWLO(long freq)
+__declspec(dllexport) __int64 __stdcall SetHWLO64(__int64 freq)
 {
 	if (theApp._GetUSRP() == NULL)
 	{
@@ -497,10 +505,16 @@ __declspec(dllexport) int __stdcall SetHWLO(long freq)
 	return iResult;
 }
 
+extern "C"
+__declspec(dllexport) int __stdcall SetHWLO(long freq)
+{
+	return (int)SetHWLO64(freq);
+}
+
 //---------------------------------------------------------------------------
 
 extern "C"
-__declspec(dllexport) long __stdcall GetHWLO(void)	// Called after Set
+__declspec(dllexport) __int64 __stdcall GetHWLO64(void)
 {
 	if (theApp._GetUSRP() == NULL)
 	{
@@ -512,21 +526,27 @@ __declspec(dllexport) long __stdcall GetHWLO(void)	// Called after Set
 
 	//return theApp.m_iLO;
 
-	long lResult = 0;
+	__int64 lResult = 0;
 
 	{
 		AFX_MANAGE_STATE(AfxGetStaticModuleState());
 
-		lResult = (long)theApp._GetUSRP()->GetFreq();
+		lResult = (__int64)theApp._GetUSRP()->GetFreq();
 	}
 
 	return lResult;
 }
 
+extern "C"
+__declspec(dllexport) long __stdcall GetHWLO(void)	// Called after Set
+{
+	return (long)GetHWLO64();
+}
+
 //---------------------------------------------------------------------------
 
 extern "C"
-__declspec(dllexport) void __stdcall TuneChanged(long freq)
+void __declspec(dllexport) __stdcall TuneChanged64(__int64 freq)
 {
 	if (theApp._GetUSRP() == NULL)
 	{
@@ -541,6 +561,12 @@ __declspec(dllexport) void __stdcall TuneChanged(long freq)
 
 		theApp._GetUSRP()->SetTunedFrequency(freq);
 	}
+}
+
+extern "C"
+__declspec(dllexport) void __stdcall TuneChanged(long freq)
+{
+	TuneChanged64(freq);
 }
 
 //---------------------------------------------------------------------------
@@ -564,7 +590,7 @@ __declspec(dllexport) long __stdcall GetHWSR(void)
 //---------------------------------------------------------------------------
 
 extern "C"
-__declspec(dllexport) void __stdcall IFLimitsChanged(long low, long high)
+void __declspec(dllexport) __stdcall IFLimitsChanged64(__int64 low, __int64 high)
 {
 	if (theApp._GetUSRP() == NULL)
 	{
@@ -579,6 +605,12 @@ __declspec(dllexport) void __stdcall IFLimitsChanged(long low, long high)
 
 		theApp._GetUSRP()->SetIFLimits(low, high);
 	}
+}
+
+extern "C"
+__declspec(dllexport) void __stdcall IFLimitsChanged(long low, long high)
+{
+	IFLimitsChanged64(low, high);
 }
 
 //---------------------------------------------------------------------------

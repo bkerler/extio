@@ -68,8 +68,8 @@ private:
 	UINT m_nAlignedSamplesPerPacket;
 	//CString m_strAntenna;
 	//double m_dGain;
-	long m_lIFLimits[IF_LIMIT_COUNT];
-	long m_lTunedFreq;
+	__int64 m_lIFLimits[IF_LIMIT_COUNT];
+	__int64 m_lTunedFreq;
 	//long m_lSampleRate;
 	bool m_bError;
 	bool m_bForceSampleRateUpdate;
@@ -100,9 +100,9 @@ public:
 	void Close();
 	void SetCallback(FnCallback pfnCallback);
 	DWORD Worker();
-	void SetIFLimits(long lLow, long lHigh);
-	void SetTunedFrequency(long lFreq);
-	int SetLO(ULONG lFreq);
+	void SetIFLimits(__int64 lLow, __int64 lHigh);
+	void SetTunedFrequency(__int64 lFreq);
+	int SetLO(__int64 lFreq);
 	long GetLO();
 	int Start();
 	void Stop();
