@@ -5,6 +5,7 @@ LIBRARY      "ExtIO_USRP"
 EXPORTS
 	CloseHW = _CloseHW@0
 	GetHWLO = _GetHWLO@0
+	GetHWLO64 = _GetHWLO64@0
 	GetHWSR = _GetHWSR@0
 	GetStatus = _GetStatus@0
 	InitHW = _InitHW@12
@@ -12,12 +13,16 @@ EXPORTS
 	RawDataReady = _RawDataReady@16
 	SetCallback = _SetCallback@4
 	SetHWLO = _SetHWLO@4
+	SetHWLO64 = _SetHWLO64@8
 	ShowGUI = _ShowGUI@0
 	HideGUI = _HideGUI@0
 	StartHW = _StartHW@4
+	StartHW64 = _StartHW64@8
 	StopHW = _StopHW@0
 	TuneChanged = _TuneChanged@4
+	TuneChanged64 = _TuneChanged64@8
 	IFLimitsChanged = _IFLimitsChanged@8
+	IFLimitsChanged64 = _IFLimitsChanged64@16
 	
 ;	GetTune = _GetTune@0
 ;	GetMode = _GetMode@0
