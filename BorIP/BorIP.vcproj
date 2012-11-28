@@ -70,7 +70,7 @@
 				Name="VCLinkerTool"
 				AdditionalDependencies="uhd.lib dsound.lib dxguid.lib setupapi.lib libusb-1.0.lib librtl2832++.lib"
 				LinkIncremental="2"
-				AdditionalLibraryDirectories="D:\Dev\uhd\host\_Build\lib\Debug;&quot;C:\Dev\SDK\libusb-pbatard\Win32\Debug\dll&quot;;&quot;..\..\gr-baz\msvc\librtl2832++\Debug&quot;"
+				AdditionalLibraryDirectories="D:\Dev\uhd\host\_Build\lib\Debug;C:\Dev\SDK\libusbx\Win32\Debug\dll;&quot;..\..\gr-baz\msvc\librtl2832++\Debug&quot;"
 				GenerateDebugInformation="true"
 				SubSystem="2"
 				TargetMachine="1"
@@ -153,7 +153,7 @@
 				Name="VCLinkerTool"
 				AdditionalDependencies="uhd.lib dsound.lib dxguid.lib setupapi.lib libusb-1.0.lib librtl2832++.lib"
 				LinkIncremental="1"
-				AdditionalLibraryDirectories="D:\Dev\uhd\host\_Build\lib\Release;&quot;C:\Dev\SDK\libusb-pbatard\Win32\Release\dll&quot;;&quot;..\..\gr-baz\msvc\librtl2832++\Release&quot;"
+				AdditionalLibraryDirectories="D:\Dev\uhd\host\_Build\lib\Release;C:\Dev\SDK\libusbx\Win32\Release\dll;&quot;..\..\gr-baz\msvc\librtl2832++\Release&quot;"
 				GenerateDebugInformation="true"
 				SubSystem="2"
 				OptimizeReferences="2"
@@ -414,6 +414,10 @@
 			</File>
 			<File
 				RelativePath=".\targetver.h"
+				>
+			</File>
+			<File
+				RelativePath="..\Shared\TehMin.h"
 				>
 			</File>
 			<File

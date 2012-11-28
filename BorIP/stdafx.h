@@ -22,7 +22,7 @@
 // but are changed infrequently
 
 #pragma once
-/*
+/**/
 #ifndef _SECURE_ATL
 #define _SECURE_ATL 1
 #endif
@@ -30,9 +30,9 @@
 #ifndef VC_EXTRALEAN
 #define VC_EXTRALEAN            // Exclude rarely-used stuff from Windows headers
 #endif
-*/
+/**/
 #include "targetver.h"
-/*
+/**/
 #define _ATL_CSTRING_EXPLICIT_CONSTRUCTORS      // some CString constructors will be explicit
 
 // turns off MFC's hiding of some common and often safely ignored warning messages
@@ -63,11 +63,11 @@
 #pragma comment(linker,"/manifestdependency:\"type='win32' name='Microsoft.Windows.Common-Controls' version='6.0.0.0' processorArchitecture='*' publicKeyToken='6595b64144ccf1df' language='*'\"")
 #endif
 #endif
-*/
-#define TEH_INCLUDE_MANIFEST
-#include <TehBase\TehManifest.h>
+/**/
+//#define TEH_INCLUDE_MANIFEST
+//#include <TehBase\TehManifest.h>
 
-#include <TehBase\TehAfx.h>
+//#include <TehBase\TehAfx.h>
 #include <afxcontrolbars.h>     // MFC support for ribbons and control bars
 
 #include <setupapi.h>
@@ -78,7 +78,8 @@
 
 #include <psapi.h>
 
-#include <TehBase\TehUtils.h>
+//#include <TehBase\TehUtils.h>
+#include "TehMin.h"
 
 //#include <uhd/usrp/single_usrp.hpp>
 #include <uhd/usrp/multi_usrp.hpp>

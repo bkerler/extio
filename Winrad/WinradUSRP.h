@@ -54,13 +54,16 @@ private:
 	ExtIO_USRP* m_pUSRP;
 	//CdialogExtIO* m_pDialog;
 	//long m_iLO;
-	Teh::MemoryContainer m_memPlayback;
+//	Teh::MemoryContainer m_memPlayback;
 	bool m_bPlayback;
+public:
+	short* m_pPlaybackMemory;
+	UINT m_nPlaybackMemoryLength;
 public:
 	inline ExtIO_USRP* _GetUSRP()
 	{ return m_pUSRP; }
-	inline Teh::MemoryContainer& _GetPlaybackMemory()
-	{ return m_memPlayback; }
+//	inline Teh::MemoryContainer& _GetPlaybackMemory()
+//	{ return m_memPlayback; }
 	inline bool _IsPlayingBack() const
 	{ return m_bPlayback; }
 //	USRP* _GetUSRP()
@@ -71,17 +74,31 @@ public:
 
 //extern CWinradUSRPApp theApp;
 
-class PTMRC : public Teh::RefCounter, public CNoTrackObject
+class PTMRC : /*public Teh::RefCounter, */public CNoTrackObject
 {
-/*public:
-	int i;
-	UINT n;
-	//std::set<MSG> pre;
-	TLSInside()
-		: i(0)
-		, n(0)
-	{
-	}*/
+private:
+	int m_i;
+public:
+	PTMRC()
+		: m_i(0)
+	{ }
+	int RefIncCount()
+	{ ++m_i; return m_i; }
+	int RefDecCount()
+	{ --m_i; return m_i; }
+	int RefGetCount()
+	{ return m_i; }
+};
+
+class ScopedPTMRC
+{
+private:
+	PTMRC* m_p;
+public:
+	ScopedPTMRC(PTMRC* p)
+	{ p->RefIncCount(); m_p = p; }
+	~ScopedPTMRC()
+	{ m_p->RefDecCount(); }
 };
 
 THREAD_LOCAL(PTMRC, _ptmrc);

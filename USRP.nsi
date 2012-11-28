@@ -36,7 +36,7 @@ RequestExecutionLevel admin
 #######################################
 
 !define PRODUCT_NAME		"ExtIO_USRP+FCD+RTL2832 + BorIP"
-!define PRODUCT_VERSION		"1.2 BETA"
+!define PRODUCT_VERSION		"1.3 BETA"
 !define PRODUCT_PUBLISHER	"balint@spench.net"
 !define MAIN_COMMENT		"ExtIO_USRP+FCD plugin for Winrad-compatible SDR receivers && BorIP USRP+FCD Server"
 
@@ -342,6 +342,8 @@ FunctionEnd
 !endif # MAIN_EXE
 
 Function .onInit
+	#Banner::show #"Starting installer..."
+	
 #	!insertmacro MUI_LANGDLL_DISPLAY
 
 	#StrCpy $MainFolder $INSTDIR
@@ -362,6 +364,8 @@ no_runtime:
 	IntOp $0 ${SF_SELECTED} | ${SF_RO}
 	SectionSetFlags ${secRuntime} $0
 skip_runtime:
+
+	#Banner::destroy
 FunctionEnd
 
 #######################################
