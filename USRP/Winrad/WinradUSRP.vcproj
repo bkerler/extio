@@ -440,6 +440,14 @@
 				>
 			</File>
 			<File
+				RelativePath="..\Shared\TehAfxRegistryProfile.h"
+				>
+			</File>
+			<File
+				RelativePath="..\Shared\TehMin.h"
+				>
+			</File>
+			<File
 				RelativePath="..\Shared\TestStream.h"
 				>
 			</File>

@@ -29,7 +29,8 @@
 #include "PluginFactory.h"
 
 #define REGISTRY_PROFILE_SECTION	m_strSerial // _T("USRP ExtIO")
-#include <TehBase\TehAfxRegistryProfile.h>
+//#include <TehBase\TehAfxRegistryProfile.h>
+#include "TehAfxRegistryProfile.h"
 #define SETTINGS_SECTION	_T("Settings")
 
 ExtIO_USRP::ExtIO_USRP()

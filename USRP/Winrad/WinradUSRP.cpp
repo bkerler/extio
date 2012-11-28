@@ -119,7 +119,8 @@ LRESULT CALLBACK _AfxWndProcDllStatic(HWND hWnd, UINT nMsg, WPARAM wParam, LPARA
 		return ::DefWindowProc(hWnd, nMsg, wParam, lParam);
 	}
 */
-	Teh::ScopeRefDec<PTMRC> _rc(pRC);
+	//Teh::ScopeRefDec<PTMRC> _rc(pRC);
+	ScopedPTMRC _rc(pRC);
 
 	//AFX_MANAGE_STATE(&afxModuleState);
 	//AFX_MANAGE_STATE(AfxGetStaticModuleState()/*_pStatic*/);
@@ -200,6 +201,8 @@ CWinradUSRPApp::CWinradUSRPApp()
 	//, m_pDialog(NULL)
 	//, m_iLO(50000000)
 	, m_bPlayback(false)
+	, m_pPlaybackMemory(NULL)
+	, m_nPlaybackMemoryLength(512 * 2)
 {
 	//_pStatic = AfxGetStaticModuleState();
 
@@ -213,6 +216,8 @@ CWinradUSRPApp::~CWinradUSRPApp()
 	//ASSERT(m_pUSRP == NULL);
 
 	_Close(true);
+
+	SAFE_DELETE_ARRAY(m_pPlaybackMemory);
 }
 
 bool CWinradUSRPApp::_Open()
@@ -310,7 +315,8 @@ BOOL CWinradUSRPApp::InitInstance()
 
 	AfxTrace(_T("Maximum UDP size: %hu\n"), wsa.iMaxUdpDg);
 
-	m_memPlayback.AllocateMemory(512 * 2 * sizeof(short));	// RawDataReady processes in 512-sample chunks
+//	m_memPlayback.AllocateMemory(512 * 2 * sizeof(short));	// RawDataReady processes in 512-sample chunks
+	m_pPlaybackMemory = new short[m_nPlaybackMemoryLength];
 
 	return TRUE;
 }
@@ -320,6 +326,8 @@ int CWinradUSRPApp::ExitInstance()
 	//ASSERT(m_pUSRP == NULL);
 
 	_Close(true);
+
+	SAFE_DELETE_ARRAY(m_pPlaybackMemory);
 
 	return CWinApp::ExitInstance();
 }
@@ -693,7 +701,7 @@ __declspec(dllexport) void __stdcall RawDataReady(long samprate, int *Ldata, int
 	if (pMU == NULL)	// FIXME: Was playing back, then created remote connection, then Start
 		return;
 
-	Teh::MemoryContainer& mem = theApp._GetPlaybackMemory();
+/*	Teh::MemoryContainer& mem = theApp._GetPlaybackMemory();
 
 	if (mem.GetMemoryLength() != nSize)
 	{
@@ -702,9 +710,15 @@ __declspec(dllexport) void __stdcall RawDataReady(long samprate, int *Ldata, int
 		else
 			mem.ReallocateMemory(nSize);
 	}
+*/	if ((theApp.m_nPlaybackMemoryLength * sizeof(short)) != nSize)
+	{
+		SAFE_DELETE_ARRAY(theApp.m_pPlaybackMemory);
+		theApp.m_pPlaybackMemory = new short[nSize / sizeof(short)];
+		theApp.m_nPlaybackMemoryLength = nSize / sizeof(short);
+	}
 
 	//LPBYTE pDest = mem.GetMemoryPointer();
-	PSHORT pDest = (PSHORT)mem.GetMemoryPointer();
+	PSHORT pDest = /*(PSHORT)mem.GetMemoryPointer()*/theApp.m_pPlaybackMemory;
 	ASSERT(pDest);
 
 	//AfxTrace(_T("RawDataReady: %i samples\n"), numsamples);
@@ -724,5 +738,5 @@ __declspec(dllexport) void __stdcall RawDataReady(long samprate, int *Ldata, int
 		pDest[2*i+1] = (USHORT)((R & 0x00000FFF) | (bR << 12));
 	}
 
-	pMU->SubmitSamples(mem.GetMemoryPointer(), nSize);
+	pMU->SubmitSamples(/*mem.GetMemoryPointer()*/(LPBYTE)theApp.m_pPlaybackMemory, nSize);
 }

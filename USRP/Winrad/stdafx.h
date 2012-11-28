@@ -24,7 +24,7 @@
 #pragma once
 
 #include "targetver.h"
-/*
+/**/
 #ifndef VC_EXTRALEAN
 #define VC_EXTRALEAN            // Exclude rarely-used stuff from Windows headers
 #endif
@@ -56,21 +56,38 @@
 #endif // _AFX_NO_AFXCMN_SUPPORT
 
 #include <afxsock.h>            // MFC socket extensions
+
+#ifdef _UNICODE
+#if defined _M_IX86
+#pragma comment(linker,"/manifestdependency:\"type='win32' name='Microsoft.Windows.Common-Controls' version='6.0.0.0' processorArchitecture='x86' publicKeyToken='6595b64144ccf1df' language='*'\"")
+#elif defined _M_IA64
+#pragma comment(linker,"/manifestdependency:\"type='win32' name='Microsoft.Windows.Common-Controls' version='6.0.0.0' processorArchitecture='ia64' publicKeyToken='6595b64144ccf1df' language='*'\"")
+#elif defined _M_X64
+#pragma comment(linker,"/manifestdependency:\"type='win32' name='Microsoft.Windows.Common-Controls' version='6.0.0.0' processorArchitecture='amd64' publicKeyToken='6595b64144ccf1df' language='*'\"")
+#else
+#pragma comment(linker,"/manifestdependency:\"type='win32' name='Microsoft.Windows.Common-Controls' version='6.0.0.0' processorArchitecture='*' publicKeyToken='6595b64144ccf1df' language='*'\"")
+#endif
+#endif
+
 //#include <afxdhtml.h>
-*/
-#define TEH_BASE_LINK_STATIC
-#include <TehBase\TehLinkBaseLib.h>
 
-#define TEH_INCLUDE_MANIFEST
-#include <TehBase\TehManifest.h>
+#include <afxpriv.h>
+#include <afxmt.h>
+/**/
+//#define TEH_BASE_LINK_STATIC
+//#include <TehBase\TehLinkBaseLib.h>
 
-#include <TehBase\TehAfx.h>
+//#define TEH_INCLUDE_MANIFEST
+//#include <TehBase\TehManifest.h>
+
+//#include <TehBase\TehAfx.h>
 
 #include <psapi.h>
 
-#include <TehBase\TehMemoryContainer.h>
-#include <TehBase\TehUtils.h>
-#include <TehBase\TehRefCounter.h>
+#include "TehMin.h"
+//#include <TehBase\TehMemoryContainer.h>
+//#include <TehBase\TehUtils.h>
+//#include <TehBase\TehRefCounter.h>
 
 #include <iostream>
 #include <XmlRpc.h>

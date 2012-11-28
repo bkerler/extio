@@ -29,6 +29,10 @@ MemoryUSRP::MemoryUSRP(size_t nSamplesPerPacket /*= 0*/)
 	//, m_nLength(0)
 	, m_nBufferStart(0)
 	, m_nBufferLength(0)
+	, m_pMem(NULL)
+	, m_pMemBuffer(NULL)
+	, m_nMemSize(0)
+	, m_nMemBufferSize(0)
 {
 	SetSamplesPerPacket((nSamplesPerPacket ? nSamplesPerPacket : 4096));
 
@@ -38,14 +42,23 @@ MemoryUSRP::MemoryUSRP(size_t nSamplesPerPacket /*= 0*/)
 MemoryUSRP::~MemoryUSRP()
 {
 	Stop();
+
+	SAFE_DELETE_ARRAY(m_pMemBuffer);
+	SAFE_DELETE_ARRAY(m_pMem);
 }
 
 void MemoryUSRP::SetSamplesPerPacket(size_t nSamplesPerPacket)
 {
 	m_recv_samples_per_packet = nSamplesPerPacket;
-	m_mem.AllocateMemory(m_recv_samples_per_packet * 2 * sizeof(short));
+	//m_mem.AllocateMemory(m_recv_samples_per_packet * 2 * sizeof(short));
+	m_nMemSize = m_recv_samples_per_packet * 2 * sizeof(short);
+	SAFE_DELETE_ARRAY(m_pMem);
+	m_pMem = new BYTE[m_nMemSize];
 
-	m_memBuffer.AllocateMemory(m_mem.GetMemoryLength() * 16);
+	//m_memBuffer.AllocateMemory(m_mem.GetMemoryLength() * 16);
+	m_nMemBufferSize = m_nMemSize * 16;
+	SAFE_DELETE_ARRAY(m_pMemBuffer);
+	m_pMemBuffer = new BYTE[m_nMemBufferSize];
 }
 
 bool MemoryUSRP::Create(LPCTSTR strHint /*= NULL*/)
@@ -157,25 +170,25 @@ bool MemoryUSRP::SubmitSamples(LPBYTE pData, UINT nLength)
 
 	CSingleLock lock(&m_cs, TRUE);
 
-	if ((m_memBuffer.GetMemoryLength() - m_nBufferLength) < nLength)
+	if ((/*m_memBuffer.GetMemoryLength()*/m_nMemBufferSize - m_nBufferLength) < nLength)
 	{
 		AfxTrace(_T("Dropping samples\n"));
 		return true;
 	}
 
-	UINT nStart = (m_nBufferStart + m_nBufferLength) % m_memBuffer.GetMemoryLength();
-	UINT n1 = min(nStart + nLength, m_memBuffer.GetMemoryLength()) - nStart;
+	UINT nStart = (m_nBufferStart + m_nBufferLength) % /*m_memBuffer.GetMemoryLength()*/m_nMemBufferSize;
+	UINT n1 = min(nStart + nLength, /*m_memBuffer.GetMemoryLength()*/m_nMemBufferSize) - nStart;
 
-	memcpy(m_memBuffer.GetMemoryPointer() + nStart, pData, n1);
+	memcpy(/*m_memBuffer.GetMemoryPointer()*/m_pMemBuffer + nStart, pData, n1);
 
 	if (n1 != nLength)
 	{
-		memcpy((m_memBuffer.GetMemoryPointer() + 0), (pData + n1), (nLength - n1));
+		memcpy((/*m_memBuffer.GetMemoryPointer()*/m_pMemBuffer + 0), (pData + n1), (nLength - n1));
 	}
 
 	m_nBufferLength += nLength;
 
-	ASSERT(m_nBufferLength <= m_memBuffer.GetMemoryLength());
+	ASSERT(m_nBufferLength <= /*m_memBuffer.GetMemoryLength()*/m_nMemBufferSize);
 
 	if (m_nBufferLength >= (GetSamplesPerPacket() * 2 * sizeof(short)))
 		SetEvent(m_hDataEvent);
@@ -221,18 +234,18 @@ retry_read:
 		}
 	}
 
-	UINT n1 = min(m_nBufferStart + nSize, m_memBuffer.GetMemoryLength()) - m_nBufferStart;
+	UINT n1 = min(m_nBufferStart + nSize, /*m_memBuffer.GetMemoryLength()*/m_nMemBufferSize) - m_nBufferStart;
 
-	memcpy(m_mem.GetMemoryPointer(), (m_memBuffer.GetMemoryPointer() + m_nBufferStart), n1);
+	memcpy(/*m_mem.GetMemoryPointer()*/m_pMem, (/*m_memBuffer.GetMemoryPointer()*/m_pMemBuffer + m_nBufferStart), n1);
 
 	if (n1 != nSize)
 	{
-		memcpy((m_mem.GetMemoryPointer() + n1), (m_memBuffer.GetMemoryPointer() + 0), (nSize - n1));
+		memcpy((/*m_mem.GetMemoryPointer()*/m_pMem + n1), (/*m_memBuffer.GetMemoryPointer()*/m_pMemBuffer + 0), (nSize - n1));
 	}
 
 	ASSERT(m_nBufferLength >= nSize);
 	m_nBufferLength -= nSize;
-	m_nBufferStart = (m_nBufferStart + nSize) % m_memBuffer.GetMemoryLength();
+	m_nBufferStart = (m_nBufferStart + nSize) % /*m_memBuffer.GetMemoryLength()*/m_nMemBufferSize;
 
 	return GetSamplesPerPacket();
 }

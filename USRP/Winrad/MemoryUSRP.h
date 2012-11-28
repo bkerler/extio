@@ -36,8 +36,10 @@ public:
 public:
 	//LPBYTE m_pData;
 	//UINT m_nLength;
-	Teh::MemoryContainer m_mem;
-	Teh::MemoryContainer m_memBuffer;
+//	Teh::MemoryContainer m_mem;
+//	Teh::MemoryContainer m_memBuffer;
+	LPBYTE m_pMem, m_pMemBuffer;
+	UINT m_nMemSize, m_nMemBufferSize;
 	UINT m_nBufferStart, m_nBufferLength;
 public:	// USRP
 	bool Create(LPCTSTR strHint = NULL);
@@ -58,7 +60,8 @@ public:
 	bool SubmitSamples(LPBYTE pData, UINT nLength);
 public:
 	inline const short* GetBuffer() const
-	{ return (short*)m_mem.GetMemoryPointer(); }
+//	{ return (short*)m_mem.GetMemoryPointer(); }
+	{ return (short*)m_pMem; }
 	//inline size_t GetSamplesPerPacket() const
 	//{ return (m_mem.GetMemoryLength() / (2 * sizeof(short))); }
 };

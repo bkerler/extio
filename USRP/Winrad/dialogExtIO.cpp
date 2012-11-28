@@ -28,7 +28,8 @@
 #include "MemoryUSRP.h"
 
 #define REGISTRY_PROFILE_SECTION	_T("Settings")
-#include <TehBase\TehAfxRegistryProfile.h>
+//#include <TehBase\TehAfxRegistryProfile.h>
+#include "TehAfxRegistryProfile.h"
 
 #define IDM_ABOUTBOX                    0x0010
 
