@@ -262,6 +262,7 @@ BOOL CdialogExtIO::OnInitDialog()
 	SetDlgItemText(IDC_EDIT_DEVICE_HINT, m_pUSRP->GetDevice());
 
 	LPCTSTR strExampleHints[] = {	// FIXME: Build this dynamically from registered interfaces
+		_T(""),
 		_T("-"),
 		_T("0"),
 		_T("FCD"),
@@ -271,12 +272,7 @@ BOOL CdialogExtIO::OnInitDialog()
 		m_cntrlCombo_DeviceHint.AddString(strExampleHints[i]);
 
 	_LoadCombo(m_cntrlCombo_DeviceHint, _T("Device hints")/*, true*/);
-
-	if (m_pUSRP->GetDevice().IsEmpty() == false)
-	{
-		m_cntrlCombo_DeviceHint.SetWindowText(m_pUSRP->GetDevice());
-		_UpdateCombo(m_cntrlCombo_DeviceHint);
-	}
+	_UpdateCombo(m_cntrlCombo_DeviceHint, m_pUSRP->GetDevice());
 
 	SetDlgItemText(IDC_EDIT_REMOTE_ADDRESS, m_pUSRP->GetRemoteAddress());
 	//if (m_pUSRP->GetRemoteAddress().IsEmpty() == false)
@@ -1278,6 +1274,10 @@ int CdialogExtIO::_LoadCombo(CComboBox& cntrl, LPCTSTR strName, bool bSelectFirs
 		while ((*pTok))
 		{
 			CString str(pTok);
+
+			if (str == _T("\n"))
+				str.Empty();
+
 			//iLast = cntrl.AddString(str);
 			iLast = _UpdateCombo(cntrl, str, true/*, true*/);
 
@@ -1316,6 +1316,9 @@ void CdialogExtIO::_StoreCombo(CComboBox& cntrl, LPCTSTR strName)
 		CString str;
 		cntrl.GetLBText(i, str);
 
+		if (str.IsEmpty())
+			str = _T("\n");
+
 		_tcscat_s(p, ul, str);
 
 		int iLength = (str.GetLength() + 1);
@@ -1327,7 +1330,7 @@ void CdialogExtIO::_StoreCombo(CComboBox& cntrl, LPCTSTR strName)
 
 	key.SetMultiStringValue(strName, ch);
 }
-/*
+
 static int _FindComboString(CComboBox& cntrl, LPCTSTR strFind)
 {
 	if (strFind == NULL)
@@ -1343,23 +1346,22 @@ static int _FindComboString(CComboBox& cntrl, LPCTSTR strFind)
 
 	return -1;
 }
-*/
+
 int CdialogExtIO::_UpdateCombo(CComboBox& cntrl/*, CString& str*/, LPCTSTR str /*= NULL*/, bool bAddToEnd /*= false*/, bool bNoSelection /*= false*/)
 {
 	CString strCurrent;
 
-	if (IS_EMPTY(str))
+//	if (IS_EMPTY(str))
+	if (str == NULL)
 		cntrl.GetWindowText(strCurrent);
 	else
 		strCurrent = str;
 
-	if (strCurrent.IsEmpty())
-		return cntrl.GetCount();
+//	if (strCurrent.IsEmpty())
+//		return cntrl.GetCount();
 
-	
-
-	int iIndex = cntrl.FindStringExact(-1, strCurrent);	// -1: search entire list
-	//int iIndex = _FindComboString(cntrl, strCurrent);
+//	int iIndex = cntrl.FindStringExact(-1, strCurrent);	// -1: search entire list	// Doesn't detect empty string
+	int iIndex = _FindComboString(cntrl, strCurrent);
 	if (iIndex >= 0)
 		cntrl.DeleteString(iIndex);
 
