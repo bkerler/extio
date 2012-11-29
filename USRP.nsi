@@ -35,8 +35,8 @@ RequestExecutionLevel admin
 
 #######################################
 
-!define PRODUCT_NAME		"ExtIO_USRP+FCD+RTL2832 + BorIP"
-!define PRODUCT_VERSION		"1.3 BETA"
+!define PRODUCT_NAME		"ExtIO_USRP+FCD+RTL2832U + BorIP"
+!define PRODUCT_VERSION		"1.3.1 BETA"
 !define PRODUCT_PUBLISHER	"balint@spench.net"
 !define MAIN_COMMENT		"ExtIO_USRP+FCD plugin for Winrad-compatible SDR receivers && BorIP USRP+FCD Server"
 
@@ -78,7 +78,7 @@ Var StartMenuFolder
 
 	!define MUI_WELCOMEPAGE_TITLE "Installer for ${PRODUCT_NAME} ${PRODUCT_VERSION}"
 	!define MUI_WELCOMEPAGE_TITLE_3LINES # Extra space for the title area
-	!define MUI_WELCOMEPAGE_TEXT "The ExtIO_USRP+FCD+RTL2832 plugin will allow you to use your USRP/FCD hardware with the Winrad-series of SDR applications.$\n$\nBorIP will allow you to do this remotely over a network.$\n$\nData from both can be sent to other applications, such as the UDP Source block in GNU Radio/GRC.$\n$\nPress Next to continue."
+	!define MUI_WELCOMEPAGE_TEXT "The ExtIO_USRP+FCD+RTL2832U plugin will allow you to use your USRP/FCD hardware with the Winrad-series of SDR applications.$\n$\nBorIP will allow you to do this remotely over a network.$\n$\nData from both can be sent to other applications, such as the UDP Source block in GNU Radio/GRC.$\n$\nPress Next to continue."
 !insertmacro MUI_PAGE_WELCOME
 
 !insertmacro MUI_PAGE_LICENSE "License.rtf"
