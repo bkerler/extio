@@ -259,7 +259,10 @@ bool RTL2832::Create(LPCTSTR strHint /*= NULL*/)
 		return false;
 	}
 
-	m_strName = CStringA(m_demod.name());
+	m_strSerial = CStringA(m_demod.name());
+	if (m_strSerial.IsEmpty())
+		m_strSerial = _T("(unknown)");
+	m_strName = m_strSerial + _T(" (") + CString(CStringA(m_demod.active_tuner()->name())) + _T(")");
 	rtl2832::range_t gr = m_demod.active_tuner()->gain_range();
 	rtl2832::values_t listGains = m_demod.active_tuner()->gain_values();
 	double dGainStep = 1.0;
