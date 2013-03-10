@@ -150,10 +150,30 @@ bool USRP::Create(LPCTSTR strHint /*= NULL*//*, double dSampleRate = 0*/)
 
 	size_t nMBs = m_dev->get_num_mboards();
 
-	m_recv_samples_per_packet = m_dev->get_device()->get_max_recv_samps_per_packet();
-	if (m_recv_samples_per_packet == 0)
+	//m_recv_samples_per_packet = m_dev->get_device()->get_max_recv_samps_per_packet();
+
+	try
 	{
-		m_strLastError = _T("Samples per packet returned zero");
+		uhd::stream_args_t rx_stream_args("sc16");
+		m_streamerRX = m_dev->get_device()->get_rx_stream(rx_stream_args);
+		m_recv_samples_per_packet = m_streamerRX->get_max_num_samps();
+
+		m_recv_samples_per_packet -= (m_recv_samples_per_packet % 512);
+
+		if (m_recv_samples_per_packet == 0)
+		{
+			m_strLastError = _T("Samples per packet returned zero");
+			return false;
+		}
+	}
+	catch (const std::runtime_error& e)
+	{
+		m_strLastError = _T("Exception while creating RX streamer: ") + CString(e.what());
+		return false;
+	}
+	catch (...)
+	{
+		m_strLastError = _T("Unknown exception while creating RX streamer");
 		return false;
 	}
 
@@ -624,12 +644,16 @@ int USRP::ReadPacket()
 
 	try
 	{
-		size_t samples_read = m_dev->get_device()->recv(
+		/*size_t samples_read = m_dev->get_device()->recv(
 					(void*)m_pBuffer,
 					m_recv_samples_per_packet,
 					m_metadata,
 					uhd::io_type_t::COMPLEX_INT16,
-					uhd::device::RECV_MODE_ONE_PACKET);
+					uhd::device::RECV_MODE_ONE_PACKET);*/
+
+		uhd::rx_metadata_t md;
+
+		size_t samples_read = m_streamerRX->recv(m_pBuffer, m_recv_samples_per_packet, md);
 
 		m_nSamplesReceived += samples_read;
 

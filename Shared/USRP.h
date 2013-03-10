@@ -21,6 +21,7 @@
 
 //#include <uhd/usrp/single_usrp.hpp>
 #include <uhd/usrp/multi_usrp.hpp>
+#include <uhd/stream.hpp>
 
 #include "IUSRP.h"
 
@@ -45,6 +46,7 @@ protected:
 	uhd::rx_metadata_t m_metadata;*/
 protected:
 	uhd::usrp::/*single*/multi_usrp::sptr m_dev;
+	uhd::rx_streamer::sptr m_streamerRX;
 	CCriticalSection m_cs;
 public:
 	virtual bool Create(LPCTSTR strHint = NULL);
