@@ -167,6 +167,12 @@ teh_pump_message_loop:
 		DispatchMessage(&msg);
 	}
 
+	while (PeekMessage(&msg, hWnd, 0, 0, PM_QS_PAINT))	// Keep control window painted
+	{
+		TranslateMessage(&msg);
+		DispatchMessage(&msg);
+	}
+
 	if ((dwTimeout != 0) &&
 			((dwTimeout == INFINITE) ||
 			((GetTickCount() - dwStart) < dwTimeout)))
@@ -179,7 +185,7 @@ teh_pump_message_loop:
 			return false;
 		}
 
-		DWORD dw = MsgWaitForMultipleObjects(1, &m_hAbortPump, FALSE, INFINITE, QS_ALLINPUT);
+		DWORD dw = MsgWaitForMultipleObjects(1, &m_hAbortPump, FALSE, INFINITE, QS_ALLINPUT | QS_ALLPOSTMESSAGE);	// QS_ALLPOSTMESSAGE to properly become aware of socket notifications (otherwise requires mouse interaction under Wine)
 		if (dw == WAIT_OBJECT_0)
 		{
 			AfxTrace(_T("Aborting pumping of message loop\n"));

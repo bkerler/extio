@@ -28,7 +28,7 @@
 
 #define FCD_SAMPLE_RATE	96000
 #define BUFFER_LENGTH	1
-
+/*
 #ifndef AfxTrace
 
 static void AFX_CDECL _AfxTrace(LPCTSTR lpszFormat, ...)
@@ -55,7 +55,7 @@ static void AFX_CDECL _AfxTrace(LPCTSTR lpszFormat, ...)
 #endif // _DEBUG
 
 #endif // _AfxTrace
-
+*/
 IMPLEMENT_PF(FUNcubeDongle)
 
 FUNcubeDongle::FUNcubeDongle()

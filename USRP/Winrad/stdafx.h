@@ -107,11 +107,12 @@
 #include <uhd/usrp/multi_usrp.hpp>
 //#include <usrp/libusrp.h>
 
-#ifndef _DEBUG
 inline void AFX_CDECL _AfxTrace(LPCTSTR lpszFormat, ...)
 {
 	va_list args;
 	va_start(args, lpszFormat);
+
+	_vtprintf(lpszFormat, args);	// For Wine
 
 	int nBuf;
 	TCHAR szBuffer[512];
@@ -127,5 +128,6 @@ inline void AFX_CDECL _AfxTrace(LPCTSTR lpszFormat, ...)
 	va_end(args);
 }
 
+#ifndef _DEBUG
 #define AfxTrace	_AfxTrace
 #endif // !_DEBUG

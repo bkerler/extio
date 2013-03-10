@@ -21,8 +21,6 @@
 
 #include "IUSRP.h"
 
-#include <libusb-1.0/libusb.h>
-
 #include <rtl2832.h>
 
 class LogMonitor
