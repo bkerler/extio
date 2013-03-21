@@ -651,9 +651,7 @@ int USRP::ReadPacket()
 					uhd::io_type_t::COMPLEX_INT16,
 					uhd::device::RECV_MODE_ONE_PACKET);*/
 
-		uhd::rx_metadata_t md;
-
-		size_t samples_read = m_streamerRX->recv(m_pBuffer, m_recv_samples_per_packet, md);
+		size_t samples_read = m_streamerRX->recv(m_pBuffer, m_recv_samples_per_packet, m_metadata);
 
 		m_nSamplesReceived += samples_read;
 
