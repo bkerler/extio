@@ -552,10 +552,11 @@ int ExtIO_USRP::SetLO(__int64 lFreq)
 	if (result != 0)
 		return result;
 
-	if (lFreq != (ULONG)m_pUSRP->GetFreq())
+	ULONG ulFreq = (ULONG)m_pUSRP->GetFreq();
+	if (lFreq != ulFreq)
 	{
 		CString str;
-		str.Format(_T("Frequency mismatch: req %lu != get %lu\n"), lFreq, (ULONG)m_pUSRP->GetFreq());
+		str.Format(_T("Frequency mismatch: req %I64lu != get %lu\n"), lFreq, ulFreq);
 		AfxTrace(str);
 		//m_pDialog->_Log(str);
 		//Signal(CS_LOChange);
