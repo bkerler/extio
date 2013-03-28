@@ -158,7 +158,7 @@ bool USRP::Create(LPCTSTR strHint /*= NULL*//*, double dSampleRate = 0*/)
 		m_streamerRX = m_dev->get_device()->get_rx_stream(rx_stream_args);
 		m_recv_samples_per_packet = m_streamerRX->get_max_num_samps();
 
-		m_recv_samples_per_packet -= (m_recv_samples_per_packet % 512);
+		m_recv_samples_per_packet = max(512, m_recv_samples_per_packet - (m_recv_samples_per_packet % 512));	// HDSDR seems to be fine without 512-sample alignment (?)
 
 		if (m_recv_samples_per_packet == 0)
 		{
