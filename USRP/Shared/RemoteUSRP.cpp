@@ -646,7 +646,10 @@ double RemoteUSRP::SetFreq(double dFreq)
 		return -1;
 	}
 
-	return m_tuneResult./*actual_inter_freq*/actual_rf_freq + m_tuneResult.actual_dsp_freq;
+	// Take 'abs' for when using Basic/LF RX: LO is 0 and CORDIC is doing (negative) shift
+	m_dFreq = abs(m_tuneResult./*actual_inter_freq*/actual_rf_freq + m_tuneResult.actual_dsp_freq);
+
+	return m_dFreq;
 }
 
 bool RemoteUSRP::CopyState(IUSRPConfiguration* pOther)	// FIXME: Remote address
