@@ -521,7 +521,8 @@ double USRP::SetFreq(double dFreq)
 		return -1;
 	}
 
-	return m_tuneResult./*actual_inter_freq*/actual_rf_freq + m_tuneResult.actual_dsp_freq;
+	// Take 'abs' for when using Basic/LF RX: LO is 0 and CORDIC is doing (negative) shift
+	return abs(m_tuneResult./*actual_inter_freq*/actual_rf_freq + m_tuneResult.actual_dsp_freq);
 }
 
 int USRP::WasTuneSuccessful(/*const uhd::tune_result_t& tuneResult*/)
@@ -554,6 +555,7 @@ bool USRP::Start()
 	}
 
 	uhd::stream_cmd_t cmd =	uhd::stream_cmd_t::STREAM_MODE_START_CONTINUOUS;
+	cmd.stream_now = true;
 
 	CSingleLock lock(&m_cs, TRUE);
 
@@ -657,11 +659,16 @@ int USRP::ReadPacket()
 
 		if (m_metadata.error_code == uhd::rx_metadata_t::ERROR_CODE_OVERFLOW)
 			++m_nOverflows;
-
-		/*if (samples_read != m_recv_samples_per_packet)
+		else if (m_metadata.error_code != uhd::rx_metadata_t::ERROR_CODE_NONE)
 		{
-			AfxTrace(_T("Only read %lu samples of %lu (missing %lu)\n"), samples_read, m_recv_samples_per_packet, (m_recv_samples_per_packet - samples_read));
-		}*/
+			return samples_read;
+		}
+
+		if (samples_read != m_recv_samples_per_packet)
+		{
+			++m_nOverflows;
+			//AfxTrace(_T("Only read %lu samples of %lu (missing %lu)\n"), samples_read, m_recv_samples_per_packet, (m_recv_samples_per_packet - samples_read));
+		}
 
 		return samples_read;
 	}

@@ -373,7 +373,10 @@ double LegacyUSRP::SetFreq(double dFreq)
 	m_tuneResult.target_dsp_freq = tr.dxc_freq + tr.residual_freq;	// FIXME: Check this
 	m_tuneResult.actual_dsp_freq = tr.dxc_freq;
 
-	return (m_dFreq = m_tuneResult./*actual_inter_freq*/actual_rf_freq + m_tuneResult.actual_dsp_freq);
+	// Take 'abs' for when using Basic/LF RX: LO is 0 and CORDIC is doing (negative) shift
+	m_dFreq = abs(m_tuneResult./*actual_inter_freq*/actual_rf_freq + m_tuneResult.actual_dsp_freq);
+
+	return m_dFreq;
 }
 
 int LegacyUSRP::WasTuneSuccessful(/*const uhd::tune_result_t& tuneResult*/)
