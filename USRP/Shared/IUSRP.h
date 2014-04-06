@@ -54,6 +54,12 @@ public:
 	{ return m_strAntenna; }
 };
 
+class IUSRPLogger
+{
+public:
+	virtual void OnMessage(const CString& str)=0;
+};
+
 class IUSRP : virtual public IUSRPConfiguration
 {
 public:
@@ -100,6 +106,8 @@ public:
 	virtual inline void SetDesiredGain(double dGain)=0;
 	virtual inline void SetDesiredAntenna(LPCTSTR strAntenna)=0;
 	virtual inline void SetDesiredFrequency(double dFreq)=0;
+public:
+	virtual IUSRPLogger* SetLogger(IUSRPLogger* pLogger)=0;
 };
 
 class USRPSkeleton : public IUSRP, public USRPConfiguration
@@ -122,6 +130,7 @@ protected:
 	uhd::tune_result_t m_tuneResult;
 	uhd::rx_metadata_t m_metadata;
 	CString m_strLastError;
+	IUSRPLogger* m_pLogger;
 public:
 /*	virtual bool Create(LPCTSTR strHint = NULL);
 	virtual bool Start();
@@ -199,4 +208,7 @@ public:
 	{ return USRPConfiguration::GetAntenna(); }
 	inline double GetFreq() const
 	{ return USRPConfiguration::GetFreq(); }
+public:
+	virtual IUSRPLogger* SetLogger(IUSRPLogger* pLogger);
+	virtual void Log(const CString& str);
 };

@@ -68,6 +68,7 @@ public:
 	float m_fBufferLevel;
 	DWORD m_dwReadPacketWait;
 	bool m_bExternalCall;
+	bool m_bWaitingForNL;
 private:
 	void on_log_message_va(int level, const char* msg, va_list args);
 public:

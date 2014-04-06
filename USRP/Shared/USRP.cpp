@@ -28,11 +28,77 @@
 //#include <uhd/usrp/device_props.hpp>
 #include <uhd/property_tree.hpp>
 #include <uhd/usrp/mboard_eeprom.hpp>
+#include <uhd/utils/msg.hpp>
+#include <uhd/utils/log.hpp>
 
 IMPLEMENT_PF(USRP)
 
+static USRP* _last_instance = NULL;
+static CCriticalSection _cs;	// To protect '_last_instance'
+
+static void _msg_handler(uhd::msg::type_t type, const std::string& msg)
+{
+	if ((type == uhd::msg::fastpath) && (msg.size() <= 1))
+		return;
+
+	static bool bWaitingForNL = false;
+
+	CString str(CStringA(msg.c_str()));
+
+	//CSingleLock lock(&_cs, TRUE);	// Messages are already serialised in UHD
+
+	int iIndex = str.Find(_T('\n'));
+	if (iIndex > -1)
+	{
+		CString strBuf;
+		if (bWaitingForNL == false)
+			strBuf += _T("UHD: ");
+		int iLast = 0;
+		while (iIndex > -1)
+		{
+			strBuf += str.Mid(iLast, iIndex - iLast) + _T("\n");
+
+			iLast = iIndex;
+
+			if (iIndex < (str.GetLength() - 1))
+			{
+				strBuf += _T("UHD: ");
+				++iLast;
+			}
+
+			iIndex = str.Find(_T('\n'), iIndex + 1);
+		}
+
+		if (iLast != (str.GetLength() - 1))
+		{
+			strBuf += str.Mid(iLast);
+			bWaitingForNL = true;
+		}
+		else
+			bWaitingForNL = false;
+
+		str = strBuf;
+	}
+	else if (bWaitingForNL == false)
+	{
+		str = _T("UHD: ") + str;
+		bWaitingForNL = true;
+	}
+
+	AfxTrace(_T("%s"), str);
+
+	if ((_last_instance != NULL) && (type != uhd::msg::fastpath))
+		_last_instance->Log(str);
+}
+
 USRP::USRP()
 {
+	{
+		CSingleLock lock(&_cs, TRUE);
+		_last_instance = this;
+	}
+
+	uhd::msg::register_handler(_msg_handler);
 }
 
 USRP::~USRP()
@@ -41,6 +107,12 @@ USRP::~USRP()
 
 	//if (m_dev)
 	//	Sleep(1000);	// TODO: Does this fix the libusb-1 hang problem? No.
+
+	{
+		CSingleLock lock(&_cs, TRUE);
+		if (_last_instance == this)
+			_last_instance = NULL;
+	}
 }
 
 bool USRP::Create(LPCTSTR strHint /*= NULL*//*, double dSampleRate = 0*/)
@@ -604,6 +676,14 @@ void USRP::Stop()
 	try
 	{
 		m_dev->issue_stream_cmd(cmd);
+
+		// Flush the RX transport (for B2x0)
+		uhd::rx_metadata_t md;
+		ZERO_MEMORY(md);
+		do
+		{
+			m_streamerRX->recv(m_pBuffer, m_recv_samples_per_packet, md);
+		} while (md.error_code != uhd::rx_metadata_t::ERROR_CODE_TIMEOUT);
 	}
 	catch (const std::runtime_error& e)
 	{
