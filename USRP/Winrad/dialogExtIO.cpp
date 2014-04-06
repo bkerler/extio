@@ -72,6 +72,7 @@ IMPLEMENT_DYNAMIC(CdialogExtIO, CDialog)
 CdialogExtIO::CdialogExtIO(ExtIO_USRP* pUSRP, CWnd* pParent /*=NULL*/)
 	: CDialog(CdialogExtIO::IDD, pParent)
 	, m_pUSRP(pUSRP)
+	, m_bContinuePreviousLogMessage(false)
 {
 	ASSERT(pUSRP);
 }
@@ -1412,4 +1413,57 @@ void CdialogExtIO::OnBnClickedCheckRelayAsBorip()
 void CdialogExtIO::OnBnClickedButtonShowCustomDeviceConfig()
 {
 	// TODO: Add your control notification handler code here
+}
+
+void CdialogExtIO::OnMessage(const CString& str)
+{
+	if (str.IsEmpty())
+		return;
+
+	// Count initial erasures
+	int iErase = 0;
+	int iIndex = str.Find(_T(0x08));
+	int iLast = -1;
+	while (iIndex > -1)
+	{
+		++iErase;
+		iLast = iIndex;
+		iIndex = str.Find(_T(0x08), iIndex + 1);
+	}
+
+	CString strBuf(str);
+
+	// Get previous log line and edit it (this will not work multi-liners!)
+	if (((iErase > 0) || (m_bContinuePreviousLogMessage)) && (m_cntrlList_Log.GetCount() > 0))
+	{
+		m_cntrlList_Log.GetText(m_cntrlList_Log.GetCount() - 1, strBuf);
+		strBuf = strBuf.Mid(0, strBuf.GetLength() - iErase);
+		strBuf += str.Mid(iLast + 1);
+		m_cntrlList_Log.DeleteString(m_cntrlList_Log.GetCount() - 1);
+	}
+	
+	// Split multi-line into multiple logs
+	iIndex = strBuf.Find(_T('\n'));
+	iLast = 0;
+
+	while (iIndex > -1)
+	{
+		_Log(strBuf.Mid(iLast, iIndex - iLast));
+		iLast = iIndex + 1;
+		iIndex = strBuf.Find(_T('\n'), iIndex + 1);
+	}
+
+	if (iLast != strBuf.GetLength())
+		_Log(strBuf.Mid(iLast));
+
+	// Detect NL on the end
+	m_bContinuePreviousLogMessage = (strBuf[strBuf.GetLength() - 1] != _T('\n'));
+
+	// Pump queue to avoid '(not responding)' ghost window
+	MSG msg;
+	while (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE/*PM_QS_PAINT*/))
+	{
+		TranslateMessage(&msg);
+		DispatchMessage(&msg);
+	}
 }

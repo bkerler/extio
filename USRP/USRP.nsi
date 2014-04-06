@@ -36,7 +36,7 @@ RequestExecutionLevel admin
 #######################################
 
 !define PRODUCT_NAME		"ExtIO_USRP+FCD+RTL2832U + BorIP"
-!define PRODUCT_VERSION		"1.5.2"
+!define PRODUCT_VERSION		"1.6 BETA 2"
 !define PRODUCT_PUBLISHER	"balint@spench.net"
 !define MAIN_COMMENT		"ExtIO_USRP+FCD plugin for Winrad-compatible SDR receivers && BorIP USRP+FCD Server"
 
@@ -149,7 +149,8 @@ VIAddVersionKey /LANG=${LANG_ENGLISH} "SpecialBuild" "Beta"
 
 SectionGroup /e "Support files" secSupport
 
-Section "libusb (libwdi Zadig v1.1.1.139)" secLibUSB
+#Section "libusb (libwdi Zadig v1.1.1.139)" secLibUSB
+Section "libusb (libwdi Zadig v2.0.1)" secLibUSB
 	SetOutPath $INSTDIR
 !define ZADIG_EXE	"zadig.exe"
 	File ${ZADIG_EXE}
@@ -216,10 +217,11 @@ Section "!${PRODUCT_NAME}" secMain
 	File "Release\libusrp.dll"
 	File "Release\librtl2832++.dll"
 	File "Release\uhd.dll"
+	File "Release\liborc-0.4-0.dll"
 	#File "Release\usrp1_fw.ihx"
 	#File "Release\usrp1_fpga.rbf"
 	#File "Release\usrp1_fpga_4rx.rbf"
-	File "D:\Dev\usrp-images\*.*"
+	File "D:\Dev\usrp-images-distrib\*.*"
 	File /r "Release\rev4"
 	
 	FindFirst $0 $1 "$SYSDIR\libusb0.dll"

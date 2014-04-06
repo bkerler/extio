@@ -30,7 +30,7 @@ LANGUAGE LANG_ENGLISH, SUBLANG_ENGLISH_AUS
 //
 
 VS_VERSION_INFO VERSIONINFO
- FILEVERSION 1,5,1,0
+ FILEVERSION 1,6,0,0
  PRODUCTVERSION 1,0,0,0
  FILEFLAGSMASK 0x1fL
 #ifdef _DEBUG
@@ -49,7 +49,7 @@ BEGIN
             VALUE "Comments", "http://spench.net/r/ExtIO_USRP"
             VALUE "CompanyName", "spench.net"
             VALUE "FileDescription", "ExtIO for USRP, FUNcube Dongle and RTL2832U DVB-T stick"
-            VALUE "FileVersion", "1.5.1.0"
+            VALUE "FileVersion", "1.6.0.0"
             VALUE "InternalName", "WinradUSRP.dll"
             VALUE "LegalCopyright", "(c) Balint Seeber 2011-2012.  All rights reserved."
             VALUE "OriginalFilename", "WinradUSRP.dll"
@@ -116,7 +116,7 @@ BEGIN
     PUSHBUTTON      "OK",IDOK,114,144,18,14,NOT WS_VISIBLE
     PUSHBUTTON      "Cancel",IDCANCEL,132,144,30,14,NOT WS_VISIBLE
     CONTROL         "",IDC_SLIDER_GAIN,"msctls_trackbar32",WS_TABSTOP,48,120,294,24
-    LISTBOX         IDC_LIST_LOG,6,180,384,70,LBS_NOINTEGRALHEIGHT | WS_VSCROLL | WS_TABSTOP
+    LISTBOX         IDC_LIST_LOG,6,180,384,70,LBS_USETABSTOPS | LBS_NOINTEGRALHEIGHT | WS_VSCROLL | WS_TABSTOP
     GROUPBOX        "Gain/Attenuation",IDC_STATIC,6,102,378,60
     PUSHBUTTON      "Min",IDC_BUTTON_MIN_GAIN,12,120,36,14
     EDITTEXT        IDC_EDIT_DEVICE_HINT,138,6,48,12,ES_AUTOHSCROLL | NOT WS_VISIBLE
@@ -172,7 +172,7 @@ STYLE DS_SETFONT | DS_MODALFRAME | DS_FIXEDSYS | WS_POPUP | WS_CAPTION | WS_SYSM
 CAPTION "About BorIP"
 FONT 8, "MS Shell Dlg", 0, 0, 0x1
 BEGIN
-    LTEXT           "ExtIO USRP, Version 1.5.1 (GPL)",IDC_STATIC,42,12,114,8,SS_NOPREFIX
+    LTEXT           "ExtIO USRP, Version 1.6 (GPL)",IDC_STATIC,42,12,114,8,SS_NOPREFIX
     LTEXT           "Copyright (C) Balint Seeber 2011-2013",IDC_STATIC,42,24,129,8
     DEFPUSHBUTTON   "OK",IDOK,120,96,48,14,WS_GROUP
     LTEXT           "Uses USRP code from GNU Radio &&\nUHD from Ettus Research.\nAlso uses rtl-sdr && XmlRpc++.",IDC_STATIC,42,40,114,26

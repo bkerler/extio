@@ -315,6 +315,8 @@ bool ExtIO_USRP::Open(LPCTSTR strHint /*= NULL*/, LPCTSTR strAddress /*= NULL*/)
 		return false;
 	}
 
+	m_pUSRP->SetLogger(m_pDialog);
+
 	///////////////////////////////////////////////////////////////////////////
 
 	CString strFilteredDevice(m_strDevice);
@@ -412,6 +414,12 @@ bool ExtIO_USRP::Open(LPCTSTR strHint /*= NULL*/, LPCTSTR strAddress /*= NULL*/)
 
 		return false;
 	}
+
+	// Since we're not starting yet, still need to attempt to set so that when 'Get' of underlying HW is called during inital UI update, it's already set
+	if (m_pUSRP->SetAntenna(m_strAntenna) == false)
+		m_pDialog->_Log(_T("While initially setting antenna: ") + m_pUSRP->GetLastError());
+	if (m_pUSRP->SetGain(m_dGain) == false)
+		m_pDialog->_Log(_T("While initially setting gain: ") + m_pUSRP->GetLastError());
 
 	// So UI gets correct value
 	m_pUSRP->SetDesiredGain(m_dGain);
