@@ -52,6 +52,7 @@ RTL2832::RTL2832()
 	, m_nBufferUnderrunCount(0)
 	, m_dwReadPacketWait(0)
 	, m_bExternalCall(false)
+	, m_bWaitingForNL(false)
 {
 	ZERO_MEMORY(m_demod_params);
 
@@ -77,8 +78,50 @@ void RTL2832::on_log_message_va(int level, const char* msg, va_list args)
 	OutputDebugStringA(szBuffer);
 	va_end(args);
 
+	CString str = CString(CStringA(szBuffer));
+
 	if ((m_bExternalCall)/* && (level <= rtl2832::log_sink::LOG_LEVEL_ERROR)*/)
-		m_strLastError = CStringA(szBuffer).Trim();
+		m_strLastError = CString(str).Trim();
+
+	int iIndex = str.Find(_T('\n'));
+	if (iIndex > -1)
+	{
+		CString strBuf;
+		if (m_bWaitingForNL == false)
+			strBuf += _T("RTL: ");
+		int iLast = 0;
+		while (iIndex > -1)
+		{
+			strBuf += str.Mid(iLast, iIndex - iLast) + _T("\n");
+
+			iLast = iIndex;
+
+			if (iIndex < (str.GetLength() - 1))
+			{
+				strBuf += _T("RTL: ");
+				++iLast;
+			}
+
+			iIndex = str.Find(_T('\n'), iIndex + 1);
+		}
+
+		if (iLast != (str.GetLength() - 1))
+		{
+			strBuf += str.Mid(iLast);
+			m_bWaitingForNL = true;
+		}
+		else
+			m_bWaitingForNL = false;
+
+		str = strBuf;
+	}
+	else if (m_bWaitingForNL == false)
+	{
+		str = _T("RTL: ") + str;
+		m_bWaitingForNL = true;
+	}
+
+	Log(str);
 }
 
 bool RTL2832::Create(LPCTSTR strHint /*= NULL*/)

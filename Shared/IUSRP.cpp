@@ -55,6 +55,7 @@ USRPSkeleton::USRPSkeleton()
 	, m_recv_samples_per_packet(0)
 	, m_bRunning(false)
 	, m_pBuffer(NULL)
+	, m_pLogger(NULL)
 {
 	ZERO_MEMORY(m_tuneResult);
 	ZERO_MEMORY(m_metadata);
@@ -95,4 +96,19 @@ bool USRPSkeleton::CopyState(IUSRPConfiguration* pOther)
 		return false;
 	
 	return true;
+}
+
+IUSRPLogger* USRPSkeleton::SetLogger(IUSRPLogger* pLogger)
+{
+	IUSRPLogger* pOld = m_pLogger;
+	m_pLogger = pLogger;
+	return pOld;
+}
+
+void USRPSkeleton::Log(const CString& str)
+{
+	if (m_pLogger == NULL)
+		return;
+
+	m_pLogger->OnMessage(str);
 }
