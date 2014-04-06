@@ -22,12 +22,13 @@
 #include "afxcmn.h"
 #include "Resource.h"
 #include "afxwin.h"
+#include "IUSRP.h"
 
 class ExtIO_USRP;
 
 // CdialogExtIO dialog
 
-class CdialogExtIO : public CDialog
+class CdialogExtIO : public CDialog, public IUSRPLogger
 {
 DECLARE_DYNAMIC(CdialogExtIO)
 public:
@@ -44,6 +45,7 @@ private:
 	CComboBox m_cntrlCombo_SampleRate;
 	CComboBox m_cntrlCombo_Antenna;
 	CListBox m_cntrlList_Log;
+	bool m_bContinuePreviousLogMessage;
 private:
 	typedef struct SubclassInfo
 	{
@@ -85,6 +87,8 @@ public:
 public:
 	CSliderCtrl m_cntrlSlider_Gain;
 	CComboBox m_cntrlCombo_DeviceHint;
+public:
+	void OnMessage(const CString& str);
 public:
 	afx_msg void OnDestroy();
 	afx_msg void OnHScroll(UINT nSBCode, UINT nPos, CScrollBar* pScrollBar);
