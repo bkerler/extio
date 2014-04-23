@@ -498,9 +498,9 @@ __declspec(dllexport) __int64 __stdcall SetHWLO64(__int64 freq)
 		return 1;	// Higher than possible
 	}
 
-	ULONG ulFreq = (ULONG)freq;
+	ULONG64 ulFreq = (ULONG64)freq;
 
-	AfxTrace(_T("Setting HW LO: %i\n"), freq);
+	AfxTrace(_T("Setting HW LO: %I64u\n"), ulFreq);
 
 	int iResult = 0;
 
