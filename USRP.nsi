@@ -36,7 +36,7 @@ RequestExecutionLevel admin
 #######################################
 
 !define PRODUCT_NAME		"ExtIO_USRP+FCD+RTL2832U + BorIP"
-!define PRODUCT_VERSION		"1.6 BETA 2"
+!define PRODUCT_VERSION		"1.6 BETA 3"
 !define PRODUCT_PUBLISHER	"balint@spench.net"
 !define MAIN_COMMENT		"ExtIO_USRP+FCD plugin for Winrad-compatible SDR receivers && BorIP USRP+FCD Server"
 
