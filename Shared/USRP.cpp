@@ -675,7 +675,9 @@ void USRP::Stop()
 
 	try
 	{
-		m_dev->issue_stream_cmd(cmd);
+		m_dev->issue_stream_cmd(cmd);	// This might get lost under heavy network conditions (?!)
+
+		DWORD dwStartTime = GetTickCount();
 
 		// Flush the RX transport (for B2x0)
 		uhd::rx_metadata_t md;
@@ -683,6 +685,16 @@ void USRP::Stop()
 		do
 		{
 			m_streamerRX->recv(m_pBuffer, m_recv_samples_per_packet, md);
+
+			DWORD dwTimeNow = GetTickCount();
+			if ((dwTimeNow - dwStartTime) > 5000)
+			{
+				m_strLastError = _T("Failed to stop stream");
+
+				m_dev->issue_stream_cmd(cmd);	// Try one last time before returning
+
+				break;
+			}
 		} while (md.error_code != uhd::rx_metadata_t::ERROR_CODE_TIMEOUT);
 	}
 	catch (const std::runtime_error& e)

@@ -44,8 +44,9 @@
 			/>
 			<Tool
 				Name="VCCLCompilerTool"
+				AdditionalOptions="/Zm113"
 				Optimization="0"
-				AdditionalIncludeDirectories="D:\Dev\boost_1_47_0;D:\Dev\uhd\host\include;..\Shared;&quot;C:\Users\Balint Seeber\Documents\Visual Studio 2008\Projects\USRP\libusrp\usrp\host\include&quot;;&quot;C:\Dev\SDK\libusb1-git&quot;;C:\Dev\SDK\libusb0\include;&quot;..\..\gr-baz\lib&quot;"
+				AdditionalIncludeDirectories="D:\Dev\boost_1_55_0;D:\Dev\uhd\host\include;..\Shared;&quot;C:\Users\Balint Seeber\Documents\Visual Studio 2008\Projects\USRP\libusrp\usrp\host\include&quot;;&quot;C:\Dev\SDK\libusb1-git&quot;;C:\Dev\SDK\libusb0\include;&quot;..\..\gr-baz\lib&quot;"
 				PreprocessorDefinitions="WIN32;_WINDOWS;_DEBUG"
 				MinimalRebuild="true"
 				BasicRuntimeChecks="3"
@@ -128,7 +129,7 @@
 				Name="VCCLCompilerTool"
 				Optimization="2"
 				EnableIntrinsicFunctions="true"
-				AdditionalIncludeDirectories="D:\Dev\boost_1_47_0;D:\Dev\uhd\host\include;..\Shared;&quot;C:\Users\Balint Seeber\Documents\Visual Studio 2008\Projects\USRP\libusrp\usrp\host\include&quot;;&quot;C:\Dev\SDK\libusb1-git&quot;;C:\Dev\SDK\libusb0\include;&quot;..\..\gr-baz\lib&quot;"
+				AdditionalIncludeDirectories="D:\Dev\boost_1_55_0;D:\Dev\uhd\host\include;..\Shared;&quot;C:\Users\Balint Seeber\Documents\Visual Studio 2008\Projects\USRP\libusrp\usrp\host\include&quot;;&quot;C:\Dev\SDK\libusb1-git&quot;;C:\Dev\SDK\libusb0\include;&quot;..\..\gr-baz\lib&quot;"
 				PreprocessorDefinitions="WIN32;_WINDOWS;NDEBUG"
 				MinimalRebuild="false"
 				RuntimeLibrary="2"
@@ -213,7 +214,7 @@
 				Name="VCCLCompilerTool"
 				Optimization="0"
 				EnableIntrinsicFunctions="true"
-				AdditionalIncludeDirectories="D:\Dev\boost_1_47_0;D:\Dev\uhd\host\include;..\Shared;&quot;C:\Users\Balint Seeber\Documents\Visual Studio 2008\Projects\USRP\libusrp\usrp\host\include&quot;;&quot;C:\Dev\SDK\libusb1-git&quot;;C:\Dev\SDK\libusb0\include;&quot;..\..\gr-baz\lib&quot;"
+				AdditionalIncludeDirectories="D:\Dev\boost_1_55_0;D:\Dev\uhd\host\include;..\Shared;&quot;C:\Users\Balint Seeber\Documents\Visual Studio 2008\Projects\USRP\libusrp\usrp\host\include&quot;;&quot;C:\Dev\SDK\libusb1-git&quot;;C:\Dev\SDK\libusb0\include;&quot;..\..\gr-baz\lib&quot;"
 				PreprocessorDefinitions="WIN32;_WINDOWS;NDEBUG"
 				MinimalRebuild="false"
 				RuntimeLibrary="2"
