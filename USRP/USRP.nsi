@@ -36,7 +36,7 @@ RequestExecutionLevel admin
 #######################################
 
 !define PRODUCT_NAME		"ExtIO_USRP+FCD+RTL2832U + BorIP"
-!define PRODUCT_VERSION		"1.6 BETA 3"
+!define PRODUCT_VERSION		"1.7 BETA 2"
 !define PRODUCT_PUBLISHER	"balint@spench.net"
 !define MAIN_COMMENT		"ExtIO_USRP+FCD plugin for Winrad-compatible SDR receivers && BorIP USRP+FCD Server"
 
@@ -221,7 +221,7 @@ Section "!${PRODUCT_NAME}" secMain
 	#File "Release\usrp1_fw.ihx"
 	#File "Release\usrp1_fpga.rbf"
 	#File "Release\usrp1_fpga_4rx.rbf"
-	File "D:\Dev\usrp-images-distrib\*.*"
+	File /r "D:\Dev\usrp-images-distrib\*.*"
 	File /r "Release\rev4"
 	
 	FindFirst $0 $1 "$SYSDIR\libusb0.dll"

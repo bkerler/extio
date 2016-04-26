@@ -592,7 +592,17 @@ __declspec(dllexport) long __stdcall GetHWSR(void)
 
 	//return /*250000*/(long)m_pUSRP->m_desired_sample_rate;	// 64M / decim (min = 250k)
 
-	return (long)theApp._GetUSRP()/*->GetUSRP()*/->GetSampleRate();
+	double dRate = theApp._GetUSRP()/*->GetUSRP()*/->GetSampleRate();
+	long lRate = (long)dRate;
+
+	if (lRate < 4000)	// MAGIC: Per HDSDR
+	{
+		lRate = 4000;
+
+		AfxTrace(_T("Rate reported as %f (clamping to %i)\n"), dRate, lRate);
+	}
+
+	return lRate;
 }
 
 //---------------------------------------------------------------------------

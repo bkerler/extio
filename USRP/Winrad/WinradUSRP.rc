@@ -30,7 +30,7 @@ LANGUAGE LANG_ENGLISH, SUBLANG_ENGLISH_AUS
 //
 
 VS_VERSION_INFO VERSIONINFO
- FILEVERSION 1,6,0,0
+ FILEVERSION 1,7,0,0
  PRODUCTVERSION 1,0,0,0
  FILEFLAGSMASK 0x1fL
 #ifdef _DEBUG
@@ -49,9 +49,9 @@ BEGIN
             VALUE "Comments", "http://spench.net/r/ExtIO_USRP"
             VALUE "CompanyName", "spench.net"
             VALUE "FileDescription", "ExtIO for USRP, FUNcube Dongle and RTL2832U DVB-T stick"
-            VALUE "FileVersion", "1.6.0.0"
+            VALUE "FileVersion", "1.7.0.0"
             VALUE "InternalName", "WinradUSRP.dll"
-            VALUE "LegalCopyright", "(c) Balint Seeber 2011-2012.  All rights reserved."
+            VALUE "LegalCopyright", "(c) Balint Seeber 2011-2015.  All rights reserved."
             VALUE "OriginalFilename", "WinradUSRP.dll"
             VALUE "ProductName", "USRP+FCD+RTL2832U ExtIO"
             VALUE "ProductVersion", "1.0.0.0"
@@ -172,7 +172,7 @@ STYLE DS_SETFONT | DS_MODALFRAME | DS_FIXEDSYS | WS_POPUP | WS_CAPTION | WS_SYSM
 CAPTION "About BorIP"
 FONT 8, "MS Shell Dlg", 0, 0, 0x1
 BEGIN
-    LTEXT           "ExtIO USRP, Version 1.6 (GPL)",IDC_STATIC,42,12,114,8,SS_NOPREFIX
+    LTEXT           "ExtIO USRP, Version 1.7 (GPL)",IDC_STATIC,42,12,114,8,SS_NOPREFIX
     LTEXT           "Copyright (C) Balint Seeber 2011-2013",IDC_STATIC,42,24,129,8
     DEFPUSHBUTTON   "OK",IDOK,120,96,48,14,WS_GROUP
     LTEXT           "Uses USRP code from GNU Radio &&\nUHD from Ettus Research.\nAlso uses rtl-sdr && XmlRpc++.",IDC_STATIC,42,40,114,26
