@@ -57,13 +57,17 @@ public:
 	virtual bool SetAntenna(LPCTSTR strAntenna);
 	virtual double SetFreq(double dFreq);
 	virtual double SetSampleRate(double dSampleRate);
+	virtual bool SetClockSource(LPCTSTR strClockSource);
+	virtual bool SetTimeSource(LPCTSTR strTimeSource);
 	virtual std::vector<std::string> GetAntennas() const;
-	//virtual SetClock();
+	virtual std::vector<std::string> GetTimeSources() const;
+	virtual std::vector<std::string> GetClockSources() const;
 	virtual int ReadPacket();
 public:
 	//virtual bool CopyState(IUSRPConfiguration* pOther);
 	//virtual void ResetStats();
 	virtual int WasTuneSuccessful();
+	virtual CString GetExtraInfo() const;
 /*public:
 	//inline double GetSampleRate() const
 	//{ return m_sample_rate; }
@@ -131,6 +135,16 @@ public:
 		CSingleLock lock(const_cast<CCriticalSection*>(&m_cs), TRUE);
 		try { return m_dev->get_rx_freq(); } catch (...) { return m_dFreq; }
 	}
+	inline CString GetClockSource() const
+	{	if (!m_dev) return __super::GetClockSource();
+		CSingleLock lock(const_cast<CCriticalSection*>(&m_cs), TRUE);
+		try { return CString(CStringA(m_dev->get_clock_source(0).c_str())); } catch (...) { return m_strClockSource; }
+	}
+	inline CString GetTimeSource() const
+	{	if (!m_dev) return __super::GetTimeSource();
+		CSingleLock lock(const_cast<CCriticalSection*>(&m_cs), TRUE);
+		try { return CString(CStringA(m_dev->get_time_source(0).c_str())); } catch (...) { return m_strTimeSource; }
+	}
 };
 
 #include "socketClient.h"
@@ -153,6 +167,8 @@ public:
 	CString m_strResponseData;
 	bool m_bConnected;
 	std::vector<std::string> m_arrayAntennas;
+	std::vector<std::string> m_arrayTimeSources;
+	std::vector<std::string> m_arrayClockSources;
 public:
 	CCriticalSection m_cs;
 	HANDLE m_hThread;
@@ -200,7 +216,11 @@ public:	// USRP
 	double SetFreq(double dFreq);
 	double SetSampleRate(double dSampleRate);
 	std::vector<std::string> GetAntennas() const;
+	std::vector<std::string> GetTimeSources() const;
+	std::vector<std::string> GetClockSources() const;
 	int ReadPacket();
+	bool SetClockSource(LPCTSTR strClockSource);
+	bool SetTimeSource(LPCTSTR strTimeSource);
 public:
 	CString GetExtraInfo() const;
 public:
@@ -223,6 +243,10 @@ public:	// USRP
 	{ return USRPConfiguration::GetAntenna(); }
 	inline double GetFreq() const
 	{ return USRPConfiguration::GetFreq(); }
+	inline CString GetClockSource() const
+	{ return USRPConfiguration::GetClockSource(); }
+	inline CString GetTimeSource() const
+	{ return USRPConfiguration::GetTimeSource(); }
 };
 
 #include <usrp/libusrp.h>

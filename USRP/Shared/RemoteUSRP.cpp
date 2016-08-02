@@ -522,6 +522,12 @@ bool RemoteUSRP::Connect(LPCTSTR strAddress, LPCTSTR strHint /*= NULL*/)
 	if (SendAndWaitForResponse(_T("ANTENNA")) == false)
 		goto connect_failure;
 
+	if (SendAndWaitForResponse(_T("CLOCK_SRC")) == false)
+		goto connect_failure;
+
+	if (SendAndWaitForResponse(_T("TIME_SRC")) == false)
+		goto connect_failure;
+
 	if (pWait)
 		pWait->_Close();
 
@@ -595,6 +601,16 @@ std::vector<std::string> RemoteUSRP::GetAntennas() const
 	return m_arrayAntennas;
 }
 
+std::vector<std::string> RemoteUSRP::GetTimeSources() const
+{
+	return m_arrayTimeSources;
+}
+
+std::vector<std::string> RemoteUSRP::GetClockSources() const
+{
+	return m_arrayClockSources;
+}
+
 bool RemoteUSRP::SetAntenna(int iIndex)
 {
 	if ((!m_bConnected) || (iIndex < 0))
@@ -652,6 +668,42 @@ double RemoteUSRP::SetFreq(double dFreq)
 	return m_dFreq;
 }
 
+bool RemoteUSRP::SetClockSource(LPCTSTR strClockSource)
+{
+	if (IS_EMPTY(strClockSource))
+		return false;
+
+	m_strClockSource = strClockSource;
+
+	if (!m_bConnected)
+		return true;
+
+	if (SendAndWaitForOK(_T("CLOCK_SRC"), CString(m_strClockSource)) == false)
+	{
+		return false;
+	}
+
+	return true;
+}
+
+bool RemoteUSRP::SetTimeSource(LPCTSTR strTimeSource)
+{
+	if (IS_EMPTY(strTimeSource))
+		return false;
+
+	m_strTimeSource = strTimeSource;
+
+	if (!m_bConnected)
+		return true;
+
+	if (SendAndWaitForOK(_T("TIME_SRC"), CString(m_strTimeSource)) == false)
+	{
+		return false;
+	}
+
+	return true;
+}
+
 bool RemoteUSRP::CopyState(IUSRPConfiguration* pOther)	// FIXME: Remote address
 {
 	if (pOther == NULL)
@@ -670,6 +722,12 @@ bool RemoteUSRP::CopyState(IUSRPConfiguration* pOther)	// FIXME: Remote address
 		return false;
 
 	if (SetFreq(pOther->GetFreq()) < 0)
+		return false;
+
+	if (SetTimeSource(pOther->GetTimeSource()) == false)
+		return false;
+
+	if (SetClockSource(pOther->GetClockSource()) == false)
 		return false;
 	
 	return true;
@@ -912,6 +970,28 @@ void RemoteUSRP::OnCommand(CsocketClient* pSocket, const CString& str)
 					m_strSerial = array[7];
 				else
 					m_strSerial = m_strName;
+
+				if (array.GetCount() >= 9)
+				{
+					CStringArray arrayClockSources;
+					Teh::Utils::Tokenise(array[8], arrayClockSources, _T(','));
+					m_arrayClockSources.clear();
+					for (INT_PTR i = 0; i < arrayClockSources.GetCount(); ++i)
+						m_arrayClockSources.push_back((LPCSTR)CStringA(arrayClockSources[i]));
+				}
+				else
+					m_arrayClockSources.clear();
+				
+				if (array.GetCount() >= 10)
+				{
+					CStringArray arrayTimeSources;
+					Teh::Utils::Tokenise(array[9], arrayTimeSources, _T(','));
+					m_arrayTimeSources.clear();
+					for (INT_PTR i = 0; i < arrayTimeSources.GetCount(); ++i)
+						m_arrayTimeSources.push_back((LPCSTR)CStringA(arrayTimeSources[i]));
+				}
+				else
+					m_arrayTimeSources.clear();
 			}
 		}
 	}
@@ -955,6 +1035,22 @@ void RemoteUSRP::OnCommand(CsocketClient* pSocket, const CString& str)
 		{
 			if (strData != _T("UNKNOWN"))
 				m_strAntenna = strData;
+		}
+	}
+	else if (strCommand == _T("CLOCK_SRC"))
+	{
+		if (strData != _T("OK"))
+		{
+			if (strData != _T("UNKNOWN"))
+				m_strClockSource = strData;
+		}
+	}
+	else if (strCommand == _T("TIME_SRC"))
+	{
+		if (strData != _T("OK"))
+		{
+			if (strData != _T("UNKNOWN"))
+				m_strTimeSource = strData;
 		}
 	}
 	else if (strCommand == _T("BUSY"))
@@ -1068,7 +1164,11 @@ DWORD RemoteUSRP::ReceiveThread()
 		else if (dwReceived != m_nPacketSize)
 		{
 			++m_nShortPackets;
-			continue;
+
+			if (dwReceived < sizeof(offsetof(BOR_PACKET, data)))
+				continue;
+
+			// Allowing short packets
 		}
 
 		{
@@ -1078,7 +1178,11 @@ DWORD RemoteUSRP::ReceiveThread()
 
 			PBOR_PACKET pPacket = (PBOR_PACKET)pBuffer;
 
-			if (pPacket->idx != m_usCounter)
+			if (pPacket->flags & BF_STREAM_START)
+			{
+				m_usCounter = pPacket->idx;
+			}
+			else if (pPacket->idx != m_usCounter)
 			{
 				//AfxTrace(_T("Ignoring out-of-sequence packet of %lu bytes (expecting %hu, got %hu, start: %lu, %lu items)\n"), dwReceived, m_usCounter, pPacket->idx, nIndex, m_nNetworkBufferItems);
 
@@ -1088,10 +1192,15 @@ DWORD RemoteUSRP::ReceiveThread()
 
 				++m_nNetworkOverrun;
 
-				m_nLastSkip = pPacket->idx - m_usCounter;
+				if (pPacket->idx > m_usCounter)
+					m_nLastSkip = pPacket->idx - m_usCounter;
+				else
+					m_nLastSkip = m_usCounter - pPacket->idx;
 
 				m_usCounter = pPacket->idx;
 			}
+
+			++m_usCounter;
 
 			//AfxTrace(_T("Writing %lu bytes into packet index %lu (%lu items)\n"), dwReceived, nIndex, m_nNetworkBufferItems);
 
@@ -1114,7 +1223,6 @@ DWORD RemoteUSRP::ReceiveThread()
 					++m_nBufferOverrun;
 				}
 
-				++m_usCounter;
 				++m_nPacketsReceived;
 //AfxTrace(_T("Received: %I64lu\n"), m_nPacketsReceived);
 				if (m_nPacketsReceived > m_nPreBufferCount)

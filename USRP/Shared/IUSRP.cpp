@@ -45,6 +45,8 @@ void USRPConfiguration::CopyFrom(const IUSRPConfiguration* pOther)
 	m_dFreq = pOther->GetFreq();
 	m_dGain = pOther->GetGain();
 	m_strAntenna = pOther->GetAntenna();
+	m_strTimeSource = pOther->GetTimeSource();
+	m_strClockSource = pOther->GetClockSource();
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -76,6 +78,7 @@ void USRPSkeleton::ResetStats()
 
 	m_nSamplesReceived = 0;
 	m_nOverflows = 0;
+	m_nShortReads = 0;
 }
 
 bool USRPSkeleton::CopyState(IUSRPConfiguration* pOther)
@@ -93,6 +96,12 @@ bool USRPSkeleton::CopyState(IUSRPConfiguration* pOther)
 		return false;
 
 	if (SetFreq(pOther->GetFreq()) < 0)
+		return false;
+
+	if (SetClockSource(pOther->GetClockSource()) == false)
+		return false;
+
+	if (SetTimeSource(pOther->GetTimeSource()) == false)
 		return false;
 	
 	return true;

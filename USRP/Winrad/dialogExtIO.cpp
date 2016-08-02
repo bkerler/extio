@@ -89,6 +89,8 @@ void CdialogExtIO::DoDataExchange(CDataExchange* pDX)
 	DDX_Control(pDX, IDC_COMBO_ANTENNA, m_cntrlCombo_Antenna);
 	DDX_Control(pDX, IDC_LIST_LOG, m_cntrlList_Log);
 	DDX_Control(pDX, IDC_COMBO_DEVICE_HINT, m_cntrlCombo_DeviceHint);
+	DDX_Control(pDX, IDC_COMBO_TIME_SOURCE, m_cntrlCombo_TimeSource);
+	DDX_Control(pDX, IDC_COMBO_CLOCK_SOURCE, m_cntrlCombo_ClockSource);
 }
 
 BEGIN_MESSAGE_MAP(CdialogExtIO, CDialog)
@@ -116,6 +118,8 @@ BEGIN_MESSAGE_MAP(CdialogExtIO, CDialog)
 	ON_BN_CLICKED(IDC_BUTTON_ABOUT, &CdialogExtIO::OnBnClickedButtonAbout)
 	ON_BN_CLICKED(IDC_CHECK_RELAY_AS_BORIP, &CdialogExtIO::OnBnClickedCheckRelayAsBorip)
 	ON_BN_CLICKED(IDC_BUTTON_SHOW_CUSTOM_DEVICE_CONFIG, &CdialogExtIO::OnBnClickedButtonShowCustomDeviceConfig)
+	ON_CBN_SELCHANGE(IDC_COMBO_TIME_SOURCE, &CdialogExtIO::OnCbnSelchangeComboTimeSource)
+	ON_CBN_SELCHANGE(IDC_COMBO_CLOCK_SOURCE, &CdialogExtIO::OnCbnSelchangeComboClockSource)
 END_MESSAGE_MAP()
 
 // CdialogExtIO message handlers
@@ -384,16 +388,90 @@ void CdialogExtIO::_CreateUI()
 	}
 
 	m_cntrlCombo_Antenna.ResetContent();
+	m_cntrlCombo_TimeSource.ResetContent();
+	m_cntrlCombo_ClockSource.ResetContent();
 
-	std::vector<std::string> array = pUSRP->GetAntennas();
-	if (array.empty())
+	////////////////////////////////////////
+
+	std::vector<std::string> arrayTimeSources = pUSRP->GetTimeSources();
+	if (arrayTimeSources.empty())
+	{
+		//_Log(_T("Time source list is empty"));
+	}
+	else
+	{
+		int iSelected = -1;
+		for (std::vector<std::string>::iterator it = arrayTimeSources.begin(); it != arrayTimeSources.end(); ++it)
+		{
+			CStringA strA((*it).c_str());
+			CString str(strA);
+
+			int iIndex = m_cntrlCombo_TimeSource.AddString(str);
+
+			if (pUSRP->GetTimeSource().CompareNoCase(str) == 0)
+			{
+				ASSERT(iSelected == -1);
+
+				iSelected = iIndex;
+			}
+		}
+
+		if (iSelected == -1)
+		{
+			_Log(_T("Selected time source not found in time source list: \"") + pUSRP->GetTimeSource() + "\"");
+
+			iSelected = 0;
+		}
+
+		m_cntrlCombo_TimeSource.SetCurSel(iSelected);
+	}
+
+	////////////////////////////////////////
+
+	std::vector<std::string> arrayClockSources = pUSRP->GetClockSources();
+	if (arrayClockSources.empty())
+	{
+		_Log(_T("Clock source list is empty"));
+	}
+	else
+	{
+		int iSelected = -1;
+		for (std::vector<std::string>::iterator it = arrayClockSources.begin(); it != arrayClockSources.end(); ++it)
+		{
+			CStringA strA((*it).c_str());
+			CString str(strA);
+
+			int iIndex = m_cntrlCombo_ClockSource.AddString(str);
+
+			if (pUSRP->GetClockSource().CompareNoCase(str) == 0)
+			{
+				ASSERT(iSelected == -1);
+
+				iSelected = iIndex;
+			}
+		}
+
+		if (iSelected == -1)
+		{
+			_Log(_T("Selected clock source not found in clock source list: \"") + pUSRP->GetClockSource() + "\"");
+
+			iSelected = 0;
+		}
+
+		m_cntrlCombo_ClockSource.SetCurSel(iSelected);
+	}
+
+	////////////////////////////////////////
+
+	std::vector<std::string> arrayAntennas = pUSRP->GetAntennas();
+	if (arrayAntennas.empty())
 	{
 		_Log(_T("Antenna list is empty - is your daughterboard loose?"));
 	}
 	else
 	{
 		int iSelected = -1;
-		for (std::vector<std::string>::iterator it = array.begin(); it != array.end(); ++it)
+		for (std::vector<std::string>::iterator it = arrayAntennas.begin(); it != arrayAntennas.end(); ++it)
 		{
 			CStringA strA((*it).c_str());
 			CString str(strA);
@@ -1466,4 +1544,34 @@ void CdialogExtIO::OnMessage(const CString& str)
 		TranslateMessage(&msg);
 		DispatchMessage(&msg);
 	}
+}
+
+void CdialogExtIO::OnCbnSelchangeComboTimeSource()
+{
+	IUSRP* pUSRP = m_pUSRP->GetUSRP();
+
+	if (pUSRP == NULL)
+		return;
+
+	//m_cntrlCombo_TimeSource.GetCurSel();
+
+	CString str;
+	m_cntrlCombo_TimeSource.GetWindowText(str);
+
+	pUSRP->SetTimeSource(str);
+}
+
+void CdialogExtIO::OnCbnSelchangeComboClockSource()
+{
+	IUSRP* pUSRP = m_pUSRP->GetUSRP();
+
+	if (pUSRP == NULL)
+		return;
+
+	//m_cntrlCombo_ClockSource.GetCurSel();
+
+	CString str;
+	m_cntrlCombo_ClockSource.GetWindowText(str);
+
+	pUSRP->SetClockSource(str);
 }

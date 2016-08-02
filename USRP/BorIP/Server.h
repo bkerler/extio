@@ -73,6 +73,7 @@ public:
 	CFile m_fileDump;
 	CTime m_timeDeviceReset;
 	CString m_strLastDeviceHint;
+	bool m_bHadOverflow;
 public:
 	UINT m_nReadFailures;
 	UINT m_nShortReads;

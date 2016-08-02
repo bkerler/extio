@@ -66,6 +66,7 @@ private:
 	HANDLE m_hWorkedFinished;
 	bool m_bWorkerActive;
 	UINT m_nAlignedSamplesPerPacket;
+	UINT m_nActualAlignedSamplesPerPacket;
 	//CString m_strAntenna;
 	//double m_dGain;
 	__int64 m_lIFLimits[IF_LIMIT_COUNT];
@@ -190,5 +191,15 @@ public:
 	{
 		if (!m_pUSRP) return __super::GetGain();
 		return m_pUSRP->GetGain();
+	}
+	inline CString GetTimeSource() const
+	{
+		if (!m_pUSRP) return __super::GetTimeSource();
+		return m_pUSRP->GetTimeSource();
+	}
+	inline CString GetClockSource() const
+	{
+		if (!m_pUSRP) return __super::GetClockSource();
+		return m_pUSRP->GetClockSource();
 	}
 };

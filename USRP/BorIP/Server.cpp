@@ -66,6 +66,7 @@ Server::Server()
 	, m_pCallback(NULL)
 	, m_bHeaderless(false)
 	, m_iDefaultPort(BOR_PORT)
+	, m_bHadOverflow(false)
 {
 	ZERO_MEMORY(m_addrDest);
 
@@ -90,6 +91,8 @@ void Server::Reset()
 	m_nPacketsSent =
 	m_nBlockingSends =
 	0;
+
+	m_bHadOverflow = false;
 }
 
 bool Server::Initialise(ServerCallback* pCallback /*= NULL*/, int iListenerPort /*= 0*/)
@@ -327,18 +330,40 @@ CString Server::FormatDevice()
 
 	str += strBuf;
 
-	std::vector<std::string> array = m_pUSRP->GetAntennas();
-	//if (array.empty() == false)
+	std::vector<std::string> arrayAntennas = m_pUSRP->GetAntennas();
+	//if (arrayAntennas.empty() == false)
 		str += _T("|");
-	for (std::vector<std::string>::iterator it = array.begin(); it != array.end(); ++it)
+	for (std::vector<std::string>::iterator it = arrayAntennas.begin(); it != arrayAntennas.end(); ++it)
 	{
-		if (it != array.begin())
+		if (it != arrayAntennas.begin())
 			str += _T(",");
 
 		str += CString((*it).c_str());
 	}
 
 	str += _T("|") + m_pUSRP->GetSerial();
+
+	std::vector<std::string> arrayClockSources = m_pUSRP->GetClockSources();
+	//if (arrayClockSources.empty() == false)
+		str += _T("|");
+	for (std::vector<std::string>::iterator it = arrayClockSources.begin(); it != arrayClockSources.end(); ++it)
+	{
+		if (it != arrayClockSources.begin())
+			str += _T(",");
+
+		str += CString((*it).c_str());
+	}
+
+	std::vector<std::string> arrayTimeSources = m_pUSRP->GetTimeSources();
+	//if (arrayTimeSources.empty() == false)
+		str += _T("|");
+	for (std::vector<std::string>::iterator it = arrayTimeSources.begin(); it != arrayTimeSources.end(); ++it)
+	{
+		if (it != arrayTimeSources.begin())
+			str += _T(",");
+
+		str += CString((*it).c_str());
+	}
 
 	return str;
 }
@@ -503,6 +528,58 @@ void Server::OnCommand(CsocketClient* pSocket, const CString& str)
 				{
 					CString str;
 					str.Format(_T("Failed to set antenna: %s (%s)"), strData, m_pUSRP->GetLastError());
+					Log(str);
+
+					strResult = _T("FAIL") + FormatError(m_pUSRP->GetLastError());
+				}
+			}
+		}
+		else
+			strResult = _T("DEVICE");
+	}
+	else if (strCommand == _T("CLOCK_SRC"))
+	{
+		if (m_pUSRP)
+		{
+			if (strData.IsEmpty())
+			{
+				strResult = m_pUSRP->GetClockSource();
+
+				if (strResult.IsEmpty())
+					strResult = _T("UNKNOWN");
+			}
+			else
+			{
+				if (m_pUSRP->SetClockSource(strData) == false)
+				{
+					CString str;
+					str.Format(_T("Failed to set clock source: %s (%s)"), strData, m_pUSRP->GetLastError());
+					Log(str);
+
+					strResult = _T("FAIL") + FormatError(m_pUSRP->GetLastError());
+				}
+			}
+		}
+		else
+			strResult = _T("DEVICE");
+	}
+	else if (strCommand == _T("TIME_SRC"))
+	{
+		if (m_pUSRP)
+		{
+			if (strData.IsEmpty())
+			{
+				strResult = m_pUSRP->GetTimeSource();
+
+				if (strResult.IsEmpty())
+					strResult = _T("UNKNOWN");
+			}
+			else
+			{
+				if (m_pUSRP->SetTimeSource(strData) == false)
+				{
+					CString str;
+					str.Format(_T("Failed to set time source: %s (%s)"), strData, m_pUSRP->GetLastError());
 					Log(str);
 
 					strResult = _T("FAIL") + FormatError(m_pUSRP->GetLastError());
@@ -964,8 +1041,20 @@ DWORD Server::Worker()
 
 				AfxTrace(_T("Only read %lu samples of %lu (missing %lu)\n"), iSamplesRead, m_pUSRP->GetSamplesPerPacket(), (m_pUSRP->GetSamplesPerPacket() - iSamplesRead));
 			}
+			else
+			{
+				if (m_pUSRP->GetMetadata().error_code == uhd::rx_metadata_t::ERROR_CODE_OVERFLOW)
+				{
+					m_bHadOverflow = true;
 
-			continue;
+					{
+						CSingleLock lock(&m_cs, TRUE);
+						++m_nOverruns;
+					}
+				}
+
+				continue;
+			}
 		}
 
 		{
@@ -975,14 +1064,17 @@ DWORD Server::Worker()
 
 		pPacket->flags = 0;
 
-		if (m_pUSRP->GetMetadata().error_code == uhd::rx_metadata_t::ERROR_CODE_OVERFLOW)
+		if ((m_pUSRP->GetMetadata().error_code == uhd::rx_metadata_t::ERROR_CODE_OVERFLOW) || (m_bHadOverflow))
 		{
 			pPacket->flags |= BF_HARDWARE_OVERRUN;
 
+			if (m_bHadOverflow == false)
 			{
 				CSingleLock lock(&m_cs, TRUE);
 				++m_nOverruns;
 			}
+
+			m_bHadOverflow = false;
 		}
 		else if (m_pUSRP->GetMetadata().error_code != 0)
 		{
