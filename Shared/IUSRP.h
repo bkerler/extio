@@ -28,6 +28,8 @@ public:
 	virtual double GetFreq() const=0;
 	virtual double GetGain() const=0;
 	virtual CString GetAntenna() const=0;
+	virtual CString GetClockSource() const=0;
+	virtual CString GetTimeSource() const=0;
 };
 
 class USRPConfiguration : virtual public IUSRPConfiguration
@@ -43,6 +45,8 @@ protected:
 	double m_dFreq;
 	double m_dGain;
 	CString m_strAntenna;
+	CString m_strTimeSource;
+	CString m_strClockSource;
 public:
 	inline virtual double GetSampleRate() const
 	{ return m_dSampleRate; }
@@ -52,6 +56,10 @@ public:
 	{ return m_dGain; }
 	inline virtual CString GetAntenna() const
 	{ return m_strAntenna; }
+	inline virtual CString GetClockSource() const
+	{ return m_strClockSource; }
+	inline virtual CString GetTimeSource() const
+	{ return m_strTimeSource; }
 };
 
 class IUSRPLogger
@@ -74,8 +82,11 @@ public:
 	virtual bool SetAntenna(LPCTSTR strAntenna)=0;
 	virtual double SetFreq(double dFreq)=0;
 	virtual double SetSampleRate(double dSampleRate)=0;
+	virtual bool SetClockSource(LPCTSTR strClockSource)=0;
+	virtual bool SetTimeSource(LPCTSTR strTimeSource)=0;
 	virtual std::vector<std::string> GetAntennas() const=0;
-	//virtual SetClock()=0;
+	virtual std::vector<std::string> GetTimeSources() const=0;
+	virtual std::vector<std::string> GetClockSources() const=0;
 	virtual int ReadPacket()=0;
 public:
 	virtual bool CopyState(IUSRPConfiguration* pOther)=0;
@@ -106,6 +117,8 @@ public:
 	virtual inline void SetDesiredGain(double dGain)=0;
 	virtual inline void SetDesiredAntenna(LPCTSTR strAntenna)=0;
 	virtual inline void SetDesiredFrequency(double dFreq)=0;
+	virtual inline void SetDesiredClockSource(LPCTSTR strClockSource)=0;
+	virtual inline void SetDesiredTimeSource(LPCTSTR strTimeSource)=0;
 public:
 	virtual IUSRPLogger* SetLogger(IUSRPLogger* pLogger)=0;
 };
@@ -125,6 +138,7 @@ protected:
 	short*	m_pBuffer;
 	UINT64	m_nSamplesReceived;
 	UINT	m_nOverflows;
+	UINT	m_nShortReads;
 protected:
 	uhd::gain_range_t m_gainRange;
 	uhd::tune_result_t m_tuneResult;
@@ -141,9 +155,13 @@ public:
 	virtual double SetFreq(double dFreq);
 	virtual double SetSampleRate(double dSampleRate);
 	virtual std::vector<std::string> GetAntennas() const;
-	//virtual SetClock();
 	virtual int ReadPacket();
 */public:
+	virtual bool SetClockSource(LPCTSTR strClockSource)
+	{ return true; }	// Default implementation
+	virtual bool SetTimeSource(LPCTSTR strTimeSource)
+	{ return true; }	// Default implementation
+public:
 	virtual bool CopyState(IUSRPConfiguration* pOther);
 	virtual void ResetStats();
 	virtual int WasTuneSuccessful()
@@ -193,12 +211,21 @@ public:
 	virtual inline CString GetLastError() const
 	{ return m_strLastError; }
 public:
+	virtual std::vector<std::string> GetTimeSources() const
+	{ return std::vector<std::string>(); }
+	virtual std::vector<std::string> GetClockSources() const
+	{ return std::vector<std::string>(); }
+public:
 	virtual inline void SetDesiredGain(double dGain)
 	{ m_dGain = dGain; }
 	virtual inline void SetDesiredAntenna(LPCTSTR strAntenna)
 	{ m_strAntenna = strAntenna; }
 	virtual inline void SetDesiredFrequency(double dFreq)
 	{ m_dFreq = dFreq; }
+	virtual inline void SetDesiredClockSource(LPCTSTR strClockSource)
+	{ m_strClockSource = strClockSource; }
+	virtual inline void SetDesiredTimeSource(LPCTSTR strTimeSource)
+	{ m_strTimeSource = strTimeSource; }
 public:
 	inline double GetSampleRate() const
 	{ return USRPConfiguration::GetSampleRate(); }
@@ -208,6 +235,10 @@ public:
 	{ return USRPConfiguration::GetAntenna(); }
 	inline double GetFreq() const
 	{ return USRPConfiguration::GetFreq(); }
+	inline CString GetClockSource() const
+	{ return USRPConfiguration::GetClockSource(); }
+	inline CString GetTimeSource() const
+	{ return USRPConfiguration::GetTimeSource(); }
 public:
 	virtual IUSRPLogger* SetLogger(IUSRPLogger* pLogger);
 	virtual void Log(const CString& str);

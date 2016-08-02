@@ -262,7 +262,7 @@ void CdialogMain::_UpdateUI()
 
 			_T("Read failures:\t%lu\n")
 			_T("Short reads:\t%lu\n")
-			_T("Overrun:\t\t%lu\n")
+			_T("Overruns:\t%lu\n")
 			_T("Blocking errors:\t%lu\n")
 			_T("Blocking waits:\t%lu\n")
 			_T("Socket errors:\t%lu\n")

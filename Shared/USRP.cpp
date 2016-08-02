@@ -230,7 +230,7 @@ bool USRP::Create(LPCTSTR strHint /*= NULL*//*, double dSampleRate = 0*/)
 		m_streamerRX = m_dev->get_device()->get_rx_stream(rx_stream_args);
 		m_recv_samples_per_packet = m_streamerRX->get_max_num_samps();
 
-		m_recv_samples_per_packet = max(512, m_recv_samples_per_packet - (m_recv_samples_per_packet % 512));	// HDSDR seems to be fine without 512-sample alignment (?)
+		//m_recv_samples_per_packet = max(512, m_recv_samples_per_packet - (m_recv_samples_per_packet % 512));	// HDSDR seems to be fine without 512-sample alignment (?)
 
 		if (m_recv_samples_per_packet == 0)
 		{
@@ -476,6 +476,136 @@ std::vector<std::string> USRP::GetAntennas() const
 	return array;
 }
 
+std::vector<std::string> USRP::GetTimeSources() const
+{
+	const_cast<CString&>(m_strLastError).Empty();
+
+	std::vector<std::string> array;
+
+	if (m_dev)
+	{
+		try
+		{
+			array = m_dev->get_time_sources(0);
+		}
+		catch (const std::runtime_error& e)
+		{
+			const_cast<CString&>(m_strLastError) = _T("While getting time sources: ") + CString(e.what());
+		}
+		catch (...)
+		{
+			const_cast<CString&>(m_strLastError) = _T("Unknown while getting time sources");
+		}
+	}
+	else
+		const_cast<CString&>(m_strLastError) = _T("No device");
+
+	return array;
+}
+
+std::vector<std::string> USRP::GetClockSources() const
+{
+	const_cast<CString&>(m_strLastError).Empty();
+
+	std::vector<std::string> array;
+
+	if (m_dev)
+	{
+		try
+		{
+			array = m_dev->get_clock_sources(0);
+		}
+		catch (const std::runtime_error& e)
+		{
+			const_cast<CString&>(m_strLastError) = _T("While getting clock sources: ") + CString(e.what());
+		}
+		catch (...)
+		{
+			const_cast<CString&>(m_strLastError) = _T("Unknown while getting clock sources");
+		}
+	}
+	else
+		const_cast<CString&>(m_strLastError) = _T("No device");
+
+	return array;
+}
+
+bool USRP::SetClockSource(LPCTSTR strClockSource)
+{
+	m_strLastError.Empty();
+
+	/*if (IS_EMPTY(strClockSource))
+	{
+		m_strLastError = _T("Empty clock source");
+		return false;
+	}*/
+
+	m_strClockSource = strClockSource;
+
+	if (!m_dev)
+	{
+		m_strLastError = _T("No device");
+		return true;
+	}
+
+	CSingleLock lock(&m_cs, TRUE);
+
+	try
+	{
+		m_dev->set_clock_source((LPCSTR)CStringA(m_strClockSource));
+	}
+	catch (const std::runtime_error& e)
+	{
+		m_strLastError = _T("While setting clock source: ") + CString(e.what());
+		return false;
+	}
+	catch (/*std::exception*//*uhd::assertion_error*/...)
+	{
+		m_strLastError = _T("Unknown while setting clock source");
+		return false;
+	}
+
+	return true;
+}
+
+bool USRP::SetTimeSource(LPCTSTR strTimeSource)
+{
+	m_strLastError.Empty();
+
+	/*if (IS_EMPTY(strTimeSource))
+	{
+		m_strLastError = _T("Empty time source");
+		return false;
+	}*/
+
+	m_strTimeSource = strTimeSource;
+
+	if (!m_dev)
+	{
+		m_strLastError = _T("No device");
+		return true;
+	}
+
+	CSingleLock lock(&m_cs, TRUE);
+
+	try
+	{
+		m_dev->set_time_source((LPCSTR)CStringA(m_strTimeSource));
+	}
+	catch (const std::runtime_error& e)
+	{
+		m_strLastError = _T("While setting time source: ") + CString(e.what());
+		return false;
+	}
+	catch (/*std::exception*//*uhd::assertion_error*/...)
+	{
+		m_strLastError = _T("Unknown while setting time source");
+		return false;
+	}
+
+	return true;
+}
+
 bool USRP::SetAntenna(int iIndex)
 {
 	m_strLastError.Empty();
@@ -580,7 +710,11 @@ double USRP::SetFreq(double dFreq)
 
 	try
 	{
-		m_tuneResult = m_dev->set_rx_freq(dFreq);
+		//m_tuneResult = m_dev->set_rx_freq(dFreq);
+
+		uhd::tune_request_t req(dFreq);
+		req.args = uhd::device_addr_t("mode_n=integer");
+		m_tuneResult = m_dev->set_rx_freq(req);
 	}
 	catch (const std::runtime_error& e)
 	{
@@ -711,6 +845,15 @@ void USRP::Stop()
 	m_bRunning = false;
 }
 
+CString USRP::GetExtraInfo() const
+{
+	CString str;
+
+	str.Format(_T("Short reads:\t%lu"), m_nShortReads);
+
+	return str;
+}
+
 int USRP::ReadPacket()
 {
 	//m_strLastError.Empty();	// Skipping this here
@@ -750,15 +893,21 @@ int USRP::ReadPacket()
 		m_nSamplesReceived += samples_read;
 
 		if (m_metadata.error_code == uhd::rx_metadata_t::ERROR_CODE_OVERFLOW)
+		{
 			++m_nOverflows;
-		else if (m_metadata.error_code != uhd::rx_metadata_t::ERROR_CODE_NONE)
+		}
+		/*else if (m_metadata.error_code != uhd::rx_metadata_t::ERROR_CODE_NONE)
 		{
 			return samples_read;
-		}
+		}*/
 
 		if (samples_read != m_recv_samples_per_packet)
 		{
-			++m_nOverflows;
+			//if (m_metadata.error_code != uhd::rx_metadata_t::ERROR_CODE_OVERFLOW)	// Don't double report (already incremented above)
+			//	++m_nOverflows;
+
+			++m_nShortReads;
+
 			//AfxTrace(_T("Only read %lu samples of %lu (missing %lu)\n"), samples_read, m_recv_samples_per_packet, (m_recv_samples_per_packet - samples_read));
 		}
 
@@ -771,7 +920,11 @@ int USRP::ReadPacket()
 
 		m_strLastError = _T("While reading samples: ") + CString(e.what());
 
-		return -1;
+		AfxTrace(m_strLastError + _T("\n"));
+
+		//return -1;
+
+		return 0;	// To avoid Stop on: std::runtime_error("recv buffer smaller than vrt packet offset")
 	}
 	catch (...)
 	{
@@ -779,6 +932,8 @@ int USRP::ReadPacket()
 			return 0;
 
 		m_strLastError = _T("Unknown while reading samples");
+
+		AfxTrace(m_strLastError + _T("\n"));
 
 		return -1;
 	}

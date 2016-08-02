@@ -114,4 +114,8 @@ public:
 	afx_msg void OnBnClickedButtonAbout();
 	afx_msg void OnBnClickedCheckRelayAsBorip();
 	afx_msg void OnBnClickedButtonShowCustomDeviceConfig();
+	CComboBox m_cntrlCombo_TimeSource;
+	CComboBox m_cntrlCombo_ClockSource;
+	afx_msg void OnCbnSelchangeComboTimeSource();
+	afx_msg void OnCbnSelchangeComboClockSource();
 };

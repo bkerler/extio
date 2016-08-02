@@ -62,6 +62,7 @@ ExtIO_USRP::ExtIO_USRP()
 	, m_bWorkerActive(false)
 	, m_hWorkedFinished(NULL)
 	, m_nAlignedSamplesPerPacket(0)
+	, m_nActualAlignedSamplesPerPacket(0)
 	, m_bTestMode(FALSE)
 {
 	ZERO_MEMORY(m_lIFLimits);
@@ -386,10 +387,17 @@ bool ExtIO_USRP::Open(LPCTSTR strHint /*= NULL*/, LPCTSTR strAddress /*= NULL*/)
 	LOAD_INT(m_bUseOffset);
 	LOAD_INT(m_lOffset);
 
+	LOAD_STRING(m_strTimeSource);
+	LOAD_STRING(m_strClockSource);
+
 	if ((m_dGain < m_pUSRP->GetGainRange().start()) || (m_dGain > m_pUSRP->GetGainRange().stop()))
 		m_dGain = m_pUSRP->GetGainRange().start();
 	if (m_strAntenna.IsEmpty() && (m_pUSRP->GetAntennas().empty() == false))
 		m_strAntenna = CString(m_pUSRP->GetAntennas()[0].c_str());
+	if (m_strClockSource.IsEmpty() && (m_pUSRP->GetClockSources().empty() == false))
+		m_strClockSource = CString(m_pUSRP->GetClockSource());
+	if (m_strTimeSource.IsEmpty() && (m_pUSRP->GetTimeSources().empty() == false))
+		m_strTimeSource = CString(m_pUSRP->GetTimeSource());
 
 	/////////////////////////////////////
 
@@ -420,10 +428,16 @@ bool ExtIO_USRP::Open(LPCTSTR strHint /*= NULL*/, LPCTSTR strAddress /*= NULL*/)
 		m_pDialog->_Log(_T("While initially setting antenna: ") + m_pUSRP->GetLastError());
 	if (m_pUSRP->SetGain(m_dGain) == false)
 		m_pDialog->_Log(_T("While initially setting gain: ") + m_pUSRP->GetLastError());
+	if (m_pUSRP->SetClockSource(m_strClockSource) == false)
+		m_pDialog->_Log(_T("While initially setting clock source: ") + m_pUSRP->GetLastError());
+	if (m_pUSRP->SetTimeSource(m_strTimeSource) == false)
+		m_pDialog->_Log(_T("While initially setting time source: ") + m_pUSRP->GetLastError());
 
 	// So UI gets correct value
 	m_pUSRP->SetDesiredGain(m_dGain);
 	m_pUSRP->SetDesiredAntenna(m_strAntenna);
+	m_pUSRP->SetDesiredClockSource(m_strClockSource);
+	m_pUSRP->SetDesiredTimeSource(m_strTimeSource);
 
 	if (m_dFreq == 0)
 	{
@@ -488,6 +502,9 @@ void ExtIO_USRP::Close()
 
 		SAVE_INT(m_bUseOffset);
 		SAVE_INT(m_lOffset);
+
+		SAVE_STRING(m_strClockSource);
+		SAVE_STRING(m_strTimeSource);
 	}
 
 	/////////////////////////////////////
@@ -674,6 +691,16 @@ retry_start:
 		m_pDialog->_Log(_T("While setting sample rate: ") + m_pUSRP->GetLastError());
 		bResult = false;
 	}
+	if (m_pUSRP->SetClockSource(m_strClockSource) == false)
+	{
+		m_pDialog->_Log(_T("While setting clock source: ") + m_pUSRP->GetLastError());
+		bResult = false;
+	}
+	if (m_pUSRP->SetTimeSource(m_strTimeSource) == false)
+	{
+		m_pDialog->_Log(_T("While setting time source: ") + m_pUSRP->GetLastError());
+		bResult = false;
+	}
 	if (m_pUSRP->SetGain(m_dGain) == false)
 	{
 		m_pDialog->_Log(_T("While setting gain: ") + m_pUSRP->GetLastError());
@@ -755,10 +782,37 @@ retry_start:
 	ResetEvent(m_hWorkedFinished);
 
 	// Calculate before starting thread
-	m_nAlignedSamplesPerPacket = m_pUSRP->GetSamplesPerPacket();
-	ASSERT(m_nAlignedSamplesPerPacket > 0);
-	m_nAlignedSamplesPerPacket -= (m_nAlignedSamplesPerPacket % 512);
-	m_nAlignedSamplesPerPacket = max(512, m_nAlignedSamplesPerPacket);
+	UINT nAlignedSamplesPerPacket = m_pUSRP->GetSamplesPerPacket();
+	ASSERT(nAlignedSamplesPerPacket > 0);
+	if (nAlignedSamplesPerPacket == 0)
+	{
+		m_pDialog->_Log(_T("The interface reported zero samples would be in a packet"));
+		Signal(CS_Stop);
+		AfxMessageBox(_T("The interface reported zero samples would be in a packet"));
+		return 0;
+	}
+	nAlignedSamplesPerPacket -= (nAlignedSamplesPerPacket % 512);
+	nAlignedSamplesPerPacket = max(512, nAlignedSamplesPerPacket);
+
+	m_nActualAlignedSamplesPerPacket = nAlignedSamplesPerPacket;
+
+	if (m_nAlignedSamplesPerPacket != 0)
+	{
+		if (nAlignedSamplesPerPacket > m_nAlignedSamplesPerPacket)
+		{
+			CString str;
+			str.Format(_T("Sample buffer already allocated for %lu samples - restart application to increase to %lu"), m_nAlignedSamplesPerPacket, nAlignedSamplesPerPacket);
+			m_pDialog->_Log(str);
+		}
+		else if (nAlignedSamplesPerPacket < m_nAlignedSamplesPerPacket)
+		{
+			// Silent
+		}
+	}
+	else if (m_nAlignedSamplesPerPacket == 0)
+	{
+		m_nAlignedSamplesPerPacket = nAlignedSamplesPerPacket;
+	}
 
 	m_hWorker = CreateThread(NULL, 0, _Worker, this, 0, &m_dwWorkerID);	// FIXME: Create before Start if Read won't break when not-yet-started
 	if (m_hWorker == NULL)
@@ -1020,7 +1074,8 @@ DWORD ExtIO_USRP::Worker()
 	bool bFirstPacket = true;
 
 	UINT nAlignedPayloadSize = m_nAlignedSamplesPerPacket * 2 * sizeof(short);
-	UINT nAlignedBufferSize = nAlignedPayloadSize * 2;
+	UINT nActualAlignedPayloadSize = m_nActualAlignedSamplesPerPacket * 2 * sizeof(short);
+	UINT nAlignedBufferSize = max(nAlignedPayloadSize, nPacketPayloadSize) * 2;
 	LPBYTE pAlignedBuffer = new BYTE[nAlignedBufferSize];
 	UINT nAlignedBufferUse = 0;	// Bytes
 
@@ -1055,7 +1110,7 @@ DWORD ExtIO_USRP::Worker()
 				m_bError = true;
 			}
 
-			AfxTrace(_T("Failed to read packet\n"));
+			AfxTrace(_T("Failed to read packet: %s\n"), m_pUSRP->GetLastError());
 
 			Signal(CS_Stop);
 			WaitForSingleObject(m_hEvent, INFINITE);	// 'Stop' callback will be called, so wait for it before exiting
@@ -1084,27 +1139,33 @@ DWORD ExtIO_USRP::Worker()
 			}
 		}
 
+		int iBytesRead = iSamplesRead * 2 * sizeof(short);
+
 		////////////////////////////
 
 		CSingleLock lock(&m_cs, TRUE);
 
 		if (m_pfnCallback)
 		{
+			// FIXME: Option to skip this extra copy and fall back to the original callback on only whole packets?
 			//(m_pfnCallback)(m_pUSRP->GetSamplesPerPacket(), 0, 0, const_cast<short*>(m_pUSRP->GetBuffer()));
 
-			int iBytesRead = iSamplesRead * 2 * sizeof(short);
 			UINT nCopy = min((UINT)iBytesRead, nAlignedBufferSize - nAlignedBufferUse);
+			if (nCopy < (UINT)iBytesRead)
+			{
+				AfxTrace(_T("Align buffer too full: could not accept %lu bytes (already %lu of %lu bytes)\n"), iBytesRead, nAlignedBufferUse, nAlignedBufferSize);
+			}
 			memcpy(pAlignedBuffer + nAlignedBufferUse, m_pUSRP->GetBuffer(), nCopy);
 			nAlignedBufferUse += nCopy;
 
-			while ((nAlignedBufferUse > 0) && (nAlignedBufferUse >= nAlignedPayloadSize))
+			while (/*(nAlignedBufferUse > 0) && */(nAlignedBufferUse >= nAlignedPayloadSize))
 			{
 				(m_pfnCallback)(m_nAlignedSamplesPerPacket, 0, 0, (short*)pAlignedBuffer);
 
 				nAlignedBufferUse -= nAlignedPayloadSize;
 
 				if (nAlignedBufferUse > 0)
-					memmove(pAlignedBuffer, pAlignedBuffer + nAlignedPayloadSize, nAlignedPayloadSize);
+					memmove(pAlignedBuffer, pAlignedBuffer + nAlignedPayloadSize, nAlignedBufferUse);
 			}
 		}
 
@@ -1132,9 +1193,9 @@ DWORD ExtIO_USRP::Worker()
 
 				pPacket->idx = usIndex++;
 
-				memcpy(pPacket->data, m_pUSRP->GetBuffer(), nPacketPayloadSize);
+				memcpy(pPacket->data, m_pUSRP->GetBuffer(), iBytesRead);
 
-				wsabuf.len = offsetof(BOR_PACKET, data) + nPacketPayloadSize;
+				wsabuf.len = offsetof(BOR_PACKET, data) + iBytesRead;
 				wsabuf.buf = (char*)pPacket;
 			}
 			else
